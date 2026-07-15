@@ -31,7 +31,6 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         mode=NumberMode.BOX,
         native_unit_of_measurement="min",
         icon="mdi:timer-settings-outline",
-        entity_category=EntityCategory.CONFIG,
     ),
     NumberEntityDescription(
         key="power_protection_threshold",
@@ -42,7 +41,6 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         mode=NumberMode.BOX,
         native_unit_of_measurement="W",
         icon="mdi:flash-alert",
-        entity_category=EntityCategory.CONFIG,
     ),
 )
 

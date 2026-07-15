@@ -32,7 +32,6 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
         key="auto_off_enabled",
         name="Auto-Off Timer",
         icon="mdi:timer-cancel-outline",
-        entity_category=EntityCategory.CONFIG,
     ),
     SwitchEntityDescription(
         key="auto_update_enabled",
@@ -44,7 +43,6 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
         key="power_protection_enabled",
         name="Power Protection",
         icon="mdi:flash-alert",
-        entity_category=EntityCategory.CONFIG,
     ),
 )
 
