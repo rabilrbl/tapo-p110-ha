@@ -30,6 +30,44 @@ from .entity import TapoP110Entity
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _format_duration(seconds: int) -> str:
+    """Format seconds into a human-readable duration string.
+    
+    Scales up: seconds → minutes → hours → days → months → years.
+    Only shows non-zero leading units, trailing units are zero-padded.
+    Example: 3661s → "1h 1m 1s", 90061s → "1d 1h 1m 1s"
+    """
+    if seconds < 0:
+        seconds = 0
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    d, h = divmod(h, 24)
+    # Approximate months and years from days
+    mo, d = divmod(d, 30)
+    y, mo = divmod(mo, 12)
+    
+    parts = []
+    if y:
+        parts.append(f"{y}y")
+    if mo or parts:
+        parts.append(f"{mo}mo")
+    if d or parts:
+        parts.append(f"{d}d")
+    if h or parts:
+        parts.append(f"{h}h")
+    if m or parts:
+        parts.append(f"{m}m")
+    if s or not parts:
+        parts.append(f"{s}s")
+    
+    # Show at most 3 most significant non-zero units
+    # But always show down to seconds if total < 1 minute
+    result = parts[0] if parts else "0s"
+    for p in parts[1:3]:
+        result += f" {p}"
+    return result
+
 SENSORS: tuple[SensorEntityDescription, ...] = (
     # Power & Energy
     SensorEntityDescription(
@@ -81,10 +119,6 @@ SENSORS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="on_time",
         name="On Time",
-        device_class=SensorDeviceClass.DURATION,
-        state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=UnitOfTime.SECONDS,
-        suggested_unit_of_measurement=UnitOfTime.MINUTES,
         icon="mdi:timer-outline",
     ),
     # Electrical
@@ -202,16 +236,17 @@ class TapoP110Sensor(TapoP110Entity, SensorEntity):
                 return round(wh / 1000, 3)
             return None
 
-        # Runtime (minutes → "Xh Ym Zs" format)
+        # Runtime and on_time → human-readable duration
         if key in ("today_runtime", "month_runtime"):
             minutes = data.get("energy_usage", {}).get(key)
             if minutes is not None:
-                h = minutes // 60
-                m = minutes % 60
-                return f"{h}h {m}m"
+                return _format_duration(minutes * 60)
             return None
         if key == "on_time":
-            return data.get("device_info", {}).get("on_time")
+            seconds = data.get("device_info", {}).get("on_time")
+            if seconds is not None:
+                return _format_duration(seconds)
+            return None
 
         # Electrical (emeter_data)
         if key == "voltage":
