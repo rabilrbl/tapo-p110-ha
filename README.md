@@ -12,7 +12,6 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 - **Local polling** — no cloud dependency after setup
 - **TPAP protocol** — SPAKE2+ handshake with cloud credentials
-- **Credential reuse** — add additional devices with just an IP address
 - 27 entities per device across 6 platforms:
 
 ### Switches
