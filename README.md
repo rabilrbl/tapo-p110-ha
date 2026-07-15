@@ -60,7 +60,7 @@ Firmware 1.4.0+ replaced the KLAP protocol with TPAP (SPAKE2+ P-256 key exchange
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **"Tapo P110"**
 3. Enter:
-   - **IP Address** — your Tapo P110's local IP (e.g. `10.3.0.174`)
+   - **IP Address** — your Tapo P110's local IP (e.g. `192.168.1.100`)
    - **TP-Link Account Email** — your TP-Link cloud account email
    - **TP-Link Account Password** — your TP-Link cloud account password
 4. Click **Submit** — the integration will perform the TPAP handshake and set up all entities
