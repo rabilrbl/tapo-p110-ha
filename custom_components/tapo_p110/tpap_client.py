@@ -397,8 +397,16 @@ class TapoP110Client:
         self._send_request("set_led_info", {"led_rule": rule})
 
     def set_default_state(self, state_type: str) -> None:
-        """Set default state: 'last_states', 'on', or 'off'."""
-        self._send_request("set_device_info", {"default_states": {"type": state_type}})
+        """Set default state: 'last_states', 'on', or 'off'.
+        
+        Device stores on/off as {"type": "custom", "state": {"on": true/false}}.
+        """
+        if state_type == "last_states":
+            self._send_request("set_device_info", {"default_states": {"type": "last_states"}})
+        elif state_type == "on":
+            self._send_request("set_device_info", {"default_states": {"type": "custom", "state": {"on": True}}})
+        elif state_type == "off":
+            self._send_request("set_device_info", {"default_states": {"type": "custom", "state": {"on": False}}})
 
     def set_led_on(self, on: bool) -> None:
         """Toggle LED on/off (maps to led_rule always/never)."""
