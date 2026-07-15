@@ -6,6 +6,8 @@ Custom Home Assistant integration for TP-Link Tapo P110 smart plug using the **T
 
 Firmware 1.4.0+ replaced the KLAP protocol with TPAP (SPAKE2+ P-256 key exchange + AES-128-CCM encrypted data channel). Existing integrations (official `tplink` via python-kasa, HACS `tapo` via plugp100) do not support TPAP yet.
 
+I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any existing integration to work, so I built my own dedicated to the Tapo P110.
+
 ## Features
 
 - **Local polling** — no cloud dependency after setup
