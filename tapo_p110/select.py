@@ -24,7 +24,7 @@ SELECTS: tuple[SelectEntityDescription, ...] = (
     SelectEntityDescription(
         key="led_rule",
         name="LED Mode",
-        options=["always", "auto", "off"],
+        options=["always", "auto", "never"],
         icon="mdi:led-on",
         entity_category=EntityCategory.CONFIG,
     ),

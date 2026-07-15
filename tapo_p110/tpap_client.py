@@ -393,15 +393,21 @@ class TapoP110Client:
         self._send_request("set_device_info", {"device_on": on})
 
     def set_led_rule(self, rule: str) -> None:
-        """Set LED rule: 'always', 'auto', or 'off'."""
+        """Set LED rule: 'always', 'auto', or 'never'."""
         self._send_request("set_led_info", {"led_rule": rule})
 
     def set_led_on(self, on: bool) -> None:
-        """Toggle LED on/off (maps to led_rule always/off)."""
-        self._send_request("set_led_info", {"led_rule": "always" if on else "off"})
+        """Toggle LED on/off (maps to led_rule always/never)."""
+        self._send_request("set_led_info", {"led_rule": "always" if on else "never"})
 
     def set_auto_update(self, enable: bool) -> None:
-        self._send_request("set_auto_update_info", {"enable": enable})
+        """Toggle auto firmware update. Must send all fields or device rejects."""
+        info = self.get_auto_update_info()
+        self._send_request("set_auto_update_info", {
+            "enable": enable,
+            "time": info.get("time", 180),
+            "random_range": info.get("random_range", 120),
+        })
 
     def set_auto_off(self, enable: bool, delay_min: int) -> None:
         self._send_request("set_auto_off_config", {"enable": enable, "delay_min": delay_min})
