@@ -60,6 +60,7 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{description.key}"
+        self._last_set_option: str | None = None
 
     @property
     def current_option(self) -> str | None:
@@ -70,6 +71,10 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         if key == "led_rule":
             return data.get("led_info", {}).get("led_rule")
         if key == "default_states":
+            # Device always reports "last_states" even after setting to "on"/"off".
+            # Use last commanded value if we have one, otherwise read from device.
+            if self._last_set_option is not None:
+                return self._last_set_option
             return data.get("device_info", {}).get("default_states", {}).get("type")
         return None
 
@@ -85,6 +90,7 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
                 await self.hass.async_add_executor_job(
                     self.coordinator.client.set_default_state, option
                 )
+                self._last_set_option = option
             await self.coordinator.async_request_refresh()
         except (TapoAuthError, TapoConnectionError) as exc:
             _LOGGER.error("Set option failed: %s", exc)
