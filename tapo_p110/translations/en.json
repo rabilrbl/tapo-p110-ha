@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tapo P110 Setup",
+        "data": {
+          "host": "IP Address",
+          "username": "TP-Link Account Email",
+          "password": "TP-Link Account Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the device. Check the IP address.",
+      "invalid_auth": "Invalid credentials. Use your TP-Link cloud account email and password.",
+      "unknown": "Unknown error occurred."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
