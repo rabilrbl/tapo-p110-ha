@@ -18,7 +18,7 @@ Firmware 1.4.0+ replaced the KLAP protocol with TPAP (SPAKE2+ P-256 key exchange
 - Auto Firmware Update (config)
 
 ### Select
-- LED Mode (Always / Auto / Off)
+- LED Mode (Always / Auto / Never)
 
 ### Sensors
 - Power (W), Today/Month/Total Energy (kWh)
@@ -39,17 +39,45 @@ Firmware 1.4.0+ replaced the KLAP protocol with TPAP (SPAKE2+ P-256 key exchange
 ### Diagnostics
 - Full raw device state dump with redacted sensitive fields
 
+## Installation
+
+### Via HACS (recommended)
+
+1. Ensure [HACS](https://hacs.xyz) is installed in your Home Assistant
+2. Go to **HACS → Custom Repositories**
+3. Add this repository URL: `https://github.com/rabilrbl/tapo-p110-ha`
+4. Select category: **Integration**
+5. Search for "Tapo P110" in HACS and click **Install**
+6. Restart Home Assistant
+
+### Manual
+
+1. Copy the `custom_components/tapo_p110/` directory to your HA `custom_components/` directory
+2. Restart Home Assistant
+
 ## Setup
 
-1. Copy `tapo_p110/` to your `custom_components/` directory
-2. Restart Home Assistant
-3. Add integration → search "Tapo P110"
-4. Enter device IP, TP-Link account email and password
+1. Go to **Settings → Devices & Services → Add Integration**
+2. Search for **"Tapo P110"**
+3. Enter:
+   - **IP Address** — your Tapo P110's local IP (e.g. `10.3.0.174`)
+   - **TP-Link Account Email** — your TP-Link cloud account email
+   - **TP-Link Account Password** — your TP-Link cloud account password
+4. Click **Submit** — the integration will perform the TPAP handshake and set up all entities
+
+> **Note:** Cloud credentials are required for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
 
 ## Requirements
 
 - Home Assistant 2026.7+
-- `ecdsa` and `cryptography` packages (included in HA)
+- `ecdsa` and `cryptography` packages (included in HA by default)
+
+## Supported Devices
+
+| Model | Firmware | Protocol |
+|-------|----------|----------|
+| Tapo P110 (IN) | 1.4.3 | TPAP |
+| Tapo P110 (EU/UK/AU) | ≥1.4.0 | TPAP |
 
 ## Credits
 
