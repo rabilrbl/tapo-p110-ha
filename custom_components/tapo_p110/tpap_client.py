@@ -393,8 +393,14 @@ class TapoP110Client:
         self._send_request("set_device_info", {"device_on": on})
 
     def set_led_rule(self, rule: str) -> None:
-        """Set LED rule: 'always', 'auto', or 'never'."""
-        self._send_request("set_led_info", {"led_rule": rule})
+        """Set LED rule: 'always', 'auto', or 'never'.
+        
+        'auto' requires led_status=true alongside led_rule or it doesn't stick.
+        """
+        params = {"led_rule": rule}
+        if rule == "auto":
+            params["led_status"] = True
+        self._send_request("set_led_info", params)
 
     def set_default_state(self, state_type: str) -> None:
         """Set default state: 'last_states', 'on', or 'off'.
