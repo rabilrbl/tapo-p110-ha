@@ -3,8 +3,17 @@
     "step": {
       "user": {
         "title": "Tapo P110 Setup",
+        "description": "Enter your Tapo P110 details. Username and password are your TP-Link cloud credentials.",
         "data": {
           "host": "IP Address",
+          "username": "TP-Link Account Email",
+          "password": "TP-Link Account Password"
+        }
+      },
+      "reconfigure": {
+        "title": "Update Credentials",
+        "description": "Update your TP-Link cloud credentials for {host}.",
+        "data": {
           "username": "TP-Link Account Email",
           "password": "TP-Link Account Password"
         }
