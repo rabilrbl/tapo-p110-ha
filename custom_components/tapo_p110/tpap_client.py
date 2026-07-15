@@ -461,8 +461,10 @@ class TapoP110Client:
     def get_all_data(self) -> dict[str, Any]:
         """Fetch all polling data in one call sequence."""
         data = {}
+        # First request must succeed — if it fails, the device is unreachable
+        # or the session is stale. Don't return partial data.
+        data["device_info"] = self._send_request("get_device_info", {})
         for key, method in [
-            ("device_info", "get_device_info"),
             ("energy_usage", "get_energy_usage"),
             ("emeter_data", "get_emeter_data"),
             ("device_usage", "get_device_usage"),

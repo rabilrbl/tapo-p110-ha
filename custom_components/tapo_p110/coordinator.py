@@ -43,10 +43,16 @@ class TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.client.get_all_data
             )
         except TapoAuthError as exc:
+            # Auth failed — reset session so next poll does fresh handshake
+            await self.hass.async_add_executor_job(self.client.shutdown)
             raise UpdateFailed(f"Auth error: {exc}") from exc
         except TapoConnectionError as exc:
+            # Device unreachable or session stale — reset for fresh handshake
+            await self.hass.async_add_executor_job(self.client.shutdown)
             raise UpdateFailed(f"Connection error: {exc}") from exc
         except Exception as exc:
+            # Unknown error — reset session just in case
+            await self.hass.async_add_executor_job(self.client.shutdown)
             raise UpdateFailed(f"Unexpected error: {exc}") from exc
 
         if not data:
