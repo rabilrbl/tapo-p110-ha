@@ -12,15 +12,18 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 - **Local polling** — no cloud dependency after setup
 - **TPAP protocol** — SPAKE2+ handshake with cloud credentials
-- 24 entities per device across 6 platforms:
+- **Credential reuse** — add additional devices with just an IP address
+- 27 entities per device across 6 platforms:
 
 ### Switches
 - Plug Power (outlet on/off)
-- Auto-Off Timer (config)
+- Auto-Off Timer
 - Auto Firmware Update (config)
+- Power Protection
 
 ### Select
-- LED Mode (Always / Auto / Never)
+- LED Mode (Always On / Auto / Off)
+- Default State (Last 'On' State / On / Off)
 
 ### Sensors
 - Power (W), Today/Month/Total Energy (kWh)
@@ -33,10 +36,11 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 - Overheat, Power Overload, Overcurrent, Charging Protection
 
 ### Button
-- Reboot
+- Reboot (config)
 
 ### Number
-- Auto-Off Delay (slider, 1-120 min)
+- Auto-Off After (box input, 0–1439 min)
+- Power Protection Threshold (box input, 1–3580W)
 
 ### Diagnostics
 - Full raw device state dump with redacted sensitive fields
@@ -62,7 +66,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **"Tapo P110"**
 3. Enter:
-   - **IP Address** — your Tapo P110's local IP (e.g. `192.168.1.100`)
+   - **IP Address or Hostname** — your Tapo P110's local address (e.g. `192.168.1.100`)
    - **TP-Link Account Email** — your TP-Link cloud account email
    - **TP-Link Account Password** — your TP-Link cloud account password
 4. Click **Submit** — the integration will perform the TPAP handshake and set up all entities
