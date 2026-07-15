@@ -69,7 +69,7 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         key = self.entity_description.key
         if key == "led_rule":
             rule = data.get("led_info", {}).get("led_rule")
-            return {"always": "Always On", "auto": "Auto", "never": "Off"}.get(rule)
+            return {"always": "Always On", "auto": "Auto", "never": "Off", "night_mode": "Auto"}.get(rule)
         if key == "default_states":
             ds = data.get("device_info", {}).get("default_states", {})
             dtype = ds.get("type")
