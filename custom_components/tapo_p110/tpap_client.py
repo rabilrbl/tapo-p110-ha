@@ -396,25 +396,6 @@ class TapoP110Client:
         """Set LED rule: 'always', 'auto', or 'never'."""
         self._send_request("set_led_info", {"led_rule": rule})
 
-    def set_night_mode(self, enabled: bool, start_time: int = 1320, end_time: int = 420) -> None:
-        """Enable/disable night mode schedule.
-        
-        Only 'custom' type works on this firmware. Times are minutes from midnight.
-        Default: 22:00 (1320) to 07:00 (420).
-        """
-        if enabled:
-            self._send_request("set_led_info", {
-                "night_mode": {
-                    "night_mode_type": "custom",
-                    "start_time": start_time,
-                    "end_time": end_time,
-                }
-            })
-        else:
-            self._send_request("set_led_info", {
-                "night_mode": {"night_mode_type": "off"}
-            })
-
     def set_default_state(self, state_type: str) -> None:
         """Set default state: 'last_states', 'on', or 'off'.
         
