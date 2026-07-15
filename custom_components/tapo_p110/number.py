@@ -42,6 +42,28 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
         native_unit_of_measurement="W",
         icon="mdi:flash-alert",
     ),
+    NumberEntityDescription(
+        key="night_mode_start",
+        name="Night Mode Start",
+        native_min_value=0,
+        native_max_value=1439,
+        native_step=1,
+        mode=NumberMode.BOX,
+        native_unit_of_measurement="min",
+        icon="mdi:weather-night",
+        entity_category=EntityCategory.CONFIG,
+    ),
+    NumberEntityDescription(
+        key="night_mode_end",
+        name="Night Mode End",
+        native_min_value=0,
+        native_max_value=1439,
+        native_step=1,
+        mode=NumberMode.BOX,
+        native_unit_of_measurement="min",
+        icon="mdi:weather-sunny",
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 
@@ -81,6 +103,12 @@ class TapoP110Number(TapoP110Entity, NumberEntity):
             if pp.get("enabled"):
                 return pp.get("protection_power", 0)
             return 0
+        if key == "night_mode_start":
+            nm = data.get("led_info", {}).get("night_mode", {})
+            return nm.get("start_time")
+        if key == "night_mode_end":
+            nm = data.get("led_info", {}).get("night_mode", {})
+            return nm.get("end_time")
         return None
 
     async def async_set_native_value(self, value: float) -> None:
@@ -94,6 +122,17 @@ class TapoP110Number(TapoP110Entity, NumberEntity):
             elif key == "power_protection_threshold":
                 await self.hass.async_add_executor_job(
                     self.coordinator.client.set_power_protection_threshold, int(value)
+                )
+            elif key in ("night_mode_start", "night_mode_end"):
+                nm = self.coordinator.data.get("led_info", {}).get("night_mode", {})
+                start = nm.get("start_time", 1320)
+                end = nm.get("end_time", 420)
+                if key == "night_mode_start":
+                    start = int(value)
+                else:
+                    end = int(value)
+                await self.hass.async_add_executor_job(
+                    self.coordinator.client.set_night_mode, True, start, end
                 )
             await self.coordinator.async_request_refresh()
         except (TapoAuthError, TapoConnectionError) as exc:

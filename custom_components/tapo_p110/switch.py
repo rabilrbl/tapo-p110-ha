@@ -44,6 +44,12 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
         name="Power Protection",
         icon="mdi:flash-alert",
     ),
+    SwitchEntityDescription(
+        key="night_mode_enabled",
+        name="Night Mode",
+        icon="mdi:weather-night",
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 
@@ -59,6 +65,7 @@ async def async_setup_entry(
         TapoP110AutoOffSwitch(coordinator, SWITCHES[1]),
         TapoP110AutoUpdateSwitch(coordinator, SWITCHES[2]),
         TapoP110PowerProtectionSwitch(coordinator, SWITCHES[3]),
+        TapoP110NightModeSwitch(coordinator, SWITCHES[4]),
     ]
     async_add_entities(entities)
 
@@ -143,3 +150,19 @@ class TapoP110PowerProtectionSwitch(TapoP110BaseSwitch):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._async_turn(False, self.coordinator.client.set_power_protection_enabled)
+
+
+class TapoP110NightModeSwitch(TapoP110BaseSwitch):
+    """Switch for night mode."""
+
+    @property
+    def is_on(self) -> bool | None:
+        data = self.coordinator.data.get("led_info", {}) if self.coordinator.data else {}
+        nm = data.get("night_mode", {})
+        return nm.get("night_mode_type") == "custom"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_turn(True, self.coordinator.client.set_night_mode)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_turn(False, self.coordinator.client.set_night_mode)
