@@ -24,12 +24,24 @@ _LOGGER = logging.getLogger(__name__)
 NUMBERS: tuple[NumberEntityDescription, ...] = (
     NumberEntityDescription(
         key="auto_off_minutes",
-        name="Auto-Off Delay",
+        name="Auto-Off After",
+        native_min_value=0,
+        native_max_value=1439,
+        native_step=1,
+        mode=NumberMode.BOX,
+        native_unit_of_measurement="min",
+        icon="mdi:timer-settings-outline",
+        entity_category=EntityCategory.CONFIG,
+    ),
+    NumberEntityDescription(
+        key="power_protection_threshold",
+        name="Power Protection Threshold",
         native_min_value=1,
-        native_max_value=120,
+        native_max_value=3580,
         native_step=1,
         mode=NumberMode.SLIDER,
-        icon="mdi:timer-settings-outline",
+        native_unit_of_measurement="W",
+        icon="mdi:flash-alert",
         entity_category=EntityCategory.CONFIG,
     ),
 )
@@ -66,14 +78,25 @@ class TapoP110Number(TapoP110Entity, NumberEntity):
         key = self.entity_description.key
         if key == "auto_off_minutes":
             return data.get("auto_off_config", {}).get("delay_min")
+        if key == "power_protection_threshold":
+            pp = data.get("protection_power", {})
+            if pp.get("enabled"):
+                return pp.get("protection_power", 0)
+            return 0
         return None
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new value."""
+        key = self.entity_description.key
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator.client.set_auto_off_minutes, int(value)
-            )
+            if key == "auto_off_minutes":
+                await self.hass.async_add_executor_job(
+                    self.coordinator.client.set_auto_off_minutes, int(value)
+                )
+            elif key == "power_protection_threshold":
+                await self.hass.async_add_executor_job(
+                    self.coordinator.client.set_power_protection_threshold, int(value)
+                )
             await self.coordinator.async_request_refresh()
         except (TapoAuthError, TapoConnectionError) as exc:
-            _LOGGER.error("Set auto-off minutes failed: %s", exc)
+            _LOGGER.error("Set value failed: %s", exc)

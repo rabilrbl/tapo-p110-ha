@@ -40,6 +40,12 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
         icon="mdi:cloud-sync-outline",
         entity_category=EntityCategory.CONFIG,
     ),
+    SwitchEntityDescription(
+        key="power_protection_enabled",
+        name="Power Protection",
+        icon="mdi:flash-alert",
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 
@@ -54,6 +60,7 @@ async def async_setup_entry(
         TapoP110PowerSwitch(coordinator, SWITCHES[0]),
         TapoP110AutoOffSwitch(coordinator, SWITCHES[1]),
         TapoP110AutoUpdateSwitch(coordinator, SWITCHES[2]),
+        TapoP110PowerProtectionSwitch(coordinator, SWITCHES[3]),
     ]
     async_add_entities(entities)
 
@@ -123,3 +130,18 @@ class TapoP110AutoUpdateSwitch(TapoP110BaseSwitch):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._async_turn(False, self.coordinator.client.set_auto_update)
+
+
+class TapoP110PowerProtectionSwitch(TapoP110BaseSwitch):
+    """Switch for power protection."""
+
+    @property
+    def is_on(self) -> bool | None:
+        data = self.coordinator.data.get("protection_power", {}) if self.coordinator.data else {}
+        return data.get("enabled")
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        await self._async_turn(True, self.coordinator.client.set_power_protection_enabled)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        await self._async_turn(False, self.coordinator.client.set_power_protection_enabled)

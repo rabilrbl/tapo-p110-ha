@@ -396,6 +396,10 @@ class TapoP110Client:
         """Set LED rule: 'always', 'auto', or 'never'."""
         self._send_request("set_led_info", {"led_rule": rule})
 
+    def set_default_state(self, state_type: str) -> None:
+        """Set default state: 'last_states', 'on', or 'off'."""
+        self._send_request("set_device_info", {"default_states": {"type": state_type}})
+
     def set_led_on(self, on: bool) -> None:
         """Toggle LED on/off (maps to led_rule always/never)."""
         self._send_request("set_led_info", {"led_rule": "always" if on else "never"})
@@ -420,6 +424,28 @@ class TapoP110Client:
         config = self.get_auto_off_config()
         self._send_request("set_auto_off_config", {"enable": config.get("enable", False), "delay_min": delay_min})
 
+    def get_protection_power(self) -> dict[str, Any]:
+        return self._send_request("get_protection_power", {})
+
+    def get_max_power(self) -> dict[str, Any]:
+        return self._send_request("get_max_power", {})
+
+    def set_power_protection_threshold(self, threshold: int) -> None:
+        """Set power protection threshold. 0 disables, >0 enables."""
+        if threshold == 0:
+            self._send_request("set_protection_power", {"enabled": False, "protection_power": 0})
+        else:
+            self._send_request("set_protection_power", {"enabled": True, "protection_power": threshold})
+
+    def set_power_protection_enabled(self, enabled: bool) -> None:
+        """Enable/disable power protection, preserving current threshold."""
+        pp = self.get_protection_power()
+        threshold = pp.get("protection_power", 0)
+        if enabled and threshold == 0:
+            max_p = self.get_max_power().get("max_power", 3580)
+            threshold = max_p
+        self._send_request("set_protection_power", {"enabled": enabled, "protection_power": threshold})
+
     def reboot(self) -> None:
         self._send_request("reboot", {})
 
@@ -436,6 +462,8 @@ class TapoP110Client:
             ("led_info", "get_led_info"),
             ("auto_update_info", "get_auto_update_info"),
             ("auto_off_config", "get_auto_off_config"),
+            ("protection_power", "get_protection_power"),
+            ("max_power", "get_max_power"),
         ]:
             try:
                 data[key] = self._send_request(method, {})

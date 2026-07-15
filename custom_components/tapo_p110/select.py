@@ -28,6 +28,13 @@ SELECTS: tuple[SelectEntityDescription, ...] = (
         icon="mdi:led-on",
         entity_category=EntityCategory.CONFIG,
     ),
+    SelectEntityDescription(
+        key="default_states",
+        name="Default State",
+        options=["last_states", "on", "off"],
+        icon="mdi:power-settings",
+        entity_category=EntityCategory.CONFIG,
+    ),
 )
 
 
@@ -62,14 +69,22 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         key = self.entity_description.key
         if key == "led_rule":
             return data.get("led_info", {}).get("led_rule")
+        if key == "default_states":
+            return data.get("device_info", {}).get("default_states", {}).get("type")
         return None
 
     async def async_select_option(self, option: str) -> None:
         """Set the selected option."""
+        key = self.entity_description.key
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator.client.set_led_rule, option
-            )
+            if key == "led_rule":
+                await self.hass.async_add_executor_job(
+                    self.coordinator.client.set_led_rule, option
+                )
+            elif key == "default_states":
+                await self.hass.async_add_executor_job(
+                    self.coordinator.client.set_default_state, option
+                )
             await self.coordinator.async_request_refresh()
         except (TapoAuthError, TapoConnectionError) as exc:
-            _LOGGER.error("Set LED rule failed: %s", exc)
+            _LOGGER.error("Set option failed: %s", exc)
