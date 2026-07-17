@@ -9,12 +9,12 @@ from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
+from . import TapoP110HubEntry
+from .const import SUBENTRY_TYPE_DEVICE
 from .coordinator import TapoP110DataCoordinator
 from .entity import TapoP110Entity
 from .tpap_client import TapoAuthError, TapoConnectionError
@@ -49,27 +49,31 @@ SWITCHES: tuple[SwitchEntityDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: TapoP110HubEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Tapo P110 switches."""
-    coordinator: TapoP110DataCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [
-        TapoP110PowerSwitch(coordinator, SWITCHES[0]),
-        TapoP110AutoOffSwitch(coordinator, SWITCHES[1]),
-        TapoP110AutoUpdateSwitch(coordinator, SWITCHES[2]),
-        TapoP110PowerProtectionSwitch(coordinator, SWITCHES[3]),
-    ]
-    async_add_entities(entities)
+    """Set up Tapo P110 switches, one set per device subentry."""
+    coordinators: dict[str, TapoP110DataCoordinator] = entry.runtime_data
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != SUBENTRY_TYPE_DEVICE:
+            continue
+        coordinator = coordinators[subentry.subentry_id]
+        entities = [
+            TapoP110PowerSwitch(coordinator, SWITCHES[0], subentry.subentry_id),
+            TapoP110AutoOffSwitch(coordinator, SWITCHES[1], subentry.subentry_id),
+            TapoP110AutoUpdateSwitch(coordinator, SWITCHES[2], subentry.subentry_id),
+            TapoP110PowerProtectionSwitch(coordinator, SWITCHES[3], subentry.subentry_id),
+        ]
+        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class TapoP110BaseSwitch(TapoP110Entity, SwitchEntity):
     """Base switch for Tapo P110."""
 
-    def __init__(self, coordinator: TapoP110DataCoordinator, description: SwitchEntityDescription) -> None:
+    def __init__(self, coordinator: TapoP110DataCoordinator, description: SwitchEntityDescription, subentry_id: str) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"{subentry_id}_{description.key}"
 
     async def _async_turn(self, on: bool, setter) -> None:
         try:

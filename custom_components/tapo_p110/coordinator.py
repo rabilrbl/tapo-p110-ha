@@ -22,19 +22,23 @@ _LOGGER = logging.getLogger(__name__)
 class TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     """Coordinator for Tapo P110 data polling."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        host: str,
+        username: str,
+        password: str,
+    ) -> None:
         super().__init__(
             hass,
             _LOGGER,
-            name=f"{DOMAIN}_{entry.entry_id}",
+            name=f"{DOMAIN}_{entry.entry_id}_{host}",
             update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
         )
-        self.client = TapoP110Client(
-            entry.data[CONF_HOST],
-            entry.data[CONF_USERNAME],
-            entry.data[CONF_PASSWORD],
-        )
+        self.client = TapoP110Client(host, username, password)
         self._entry = entry
+        self.host = host
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the device."""

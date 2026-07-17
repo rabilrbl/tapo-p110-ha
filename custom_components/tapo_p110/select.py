@@ -8,12 +8,12 @@ from homeassistant.components.select import (
     SelectEntity,
     SelectEntityDescription,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
+from . import TapoP110HubEntry
+from .const import SUBENTRY_TYPE_DEVICE
 from .coordinator import TapoP110DataCoordinator
 from .entity import TapoP110Entity
 from .tpap_client import TapoAuthError, TapoConnectionError
@@ -40,13 +40,20 @@ SELECTS: tuple[SelectEntityDescription, ...] = (
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    entry: TapoP110HubEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Tapo P110 selects."""
-    coordinator: TapoP110DataCoordinator = hass.data[DOMAIN][entry.entry_id]
-    entities = [TapoP110Select(coordinator, desc) for desc in SELECTS]
-    async_add_entities(entities)
+    """Set up Tapo P110 selects, one set per device subentry."""
+    coordinators: dict[str, TapoP110DataCoordinator] = entry.runtime_data
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type != SUBENTRY_TYPE_DEVICE:
+            continue
+        coordinator = coordinators[subentry.subentry_id]
+        entities = [
+            TapoP110Select(coordinator, desc, subentry.subentry_id)
+            for desc in SELECTS
+        ]
+        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class TapoP110Select(TapoP110Entity, SelectEntity):
@@ -56,10 +63,11 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         self,
         coordinator: TapoP110DataCoordinator,
         description: SelectEntityDescription,
+        subentry_id: str,
     ) -> None:
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.config_entry.entry_id}_{description.key}"
+        self._attr_unique_id = f"{subentry_id}_{description.key}"
 
     @property
     def current_option(self) -> str | None:

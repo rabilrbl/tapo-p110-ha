@@ -1,18 +1,35 @@
 {
   "config": {
+    "initiate_flow": {
+      "user": "Add Hub"
+    },
     "step": {
       "user": {
-        "title": "Tapo P110 Setup",
-        "description": "Enter your Tapo P110 details. Username and password are your TP-Link cloud credentials.",
+        "title": "Tapo P110 Hub Setup",
+        "description": "Enter your TP-Link cloud account and your first Tapo P110's address.",
         "data": {
           "host": "IP Address or Hostname",
           "username": "TP-Link Account Email",
           "password": "TP-Link Account Password"
         }
       },
+      "zeroconf": {
+        "title": "Discovered Tapo P110",
+        "description": "Add this Tapo P110 to an existing hub or set up a new hub.",
+        "data": {
+          "hub": "Hub"
+        }
+      },
+      "zeroconf_select_hub": {
+        "title": "Discovered Tapo P110",
+        "description": "Add the discovered device at {host} to an existing hub, or set up a new hub.",
+        "data": {
+          "hub": "Hub"
+        }
+      },
       "reconfigure": {
-        "title": "Update Credentials",
-        "description": "Update your TP-Link cloud credentials for {host}.",
+        "title": "Update Hub Credentials",
+        "description": "Update your TP-Link cloud credentials for this hub.",
         "data": {
           "username": "TP-Link Account Email",
           "password": "TP-Link Account Password"
@@ -25,7 +42,43 @@
       "unknown": "Unknown error occurred."
     },
     "abort": {
-      "already_configured": "This device is already configured."
+      "already_configured": "This device is already configured.",
+      "device_added": "Device added to the hub.",
+      "reconfigure_successful": "Re-configuration was successful."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "title": "Tapo P110 Device",
+      "entry_type": "device",
+      "initiate_flow": {
+        "user": "Add Device"
+      },
+      "step": {
+        "user": {
+          "title": "Add Tapo P110 Device",
+          "description": "Enter the IP address or hostname of the Tapo P110 to add to this hub.",
+          "data": {
+            "host": "IP Address or Hostname"
+          }
+        },
+        "reconfigure": {
+          "title": "Update Device Address",
+          "description": "Update the IP address or hostname for this Tapo P110.",
+          "data": {
+            "host": "IP Address or Hostname"
+          }
+        }
+      },
+      "error": {
+        "cannot_connect": "Cannot connect to the device. Check the IP address.",
+        "invalid_auth": "Hub credentials are invalid for this device.",
+        "unknown": "Unknown error occurred."
+      },
+      "abort": {
+        "already_configured": "This device is already configured.",
+        "reconfigure_successful": "Re-configuration was successful."
+      }
     }
   }
 }

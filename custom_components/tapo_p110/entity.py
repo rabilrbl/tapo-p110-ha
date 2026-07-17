@@ -28,7 +28,7 @@ class TapoP110Entity(CoordinatorEntity[TapoP110DataCoordinator]):
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, info.get("device_id", coordinator.config_entry.entry_id))},
-            name=nickname or f"Tapo P110 ({coordinator.config_entry.data.get('host', '')})",
+            name=nickname or f"Tapo P110 ({coordinator.host})",
             manufacturer="TP-Link",
             model=f"P110 ({info.get('specs', '')})",
             sw_version=info.get("fw_ver", ""),

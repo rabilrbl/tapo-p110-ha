@@ -10,6 +10,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 ## Features
 
+- **Hub model** — one config entry per TP-Link account, multiple plugs as device subentries
 - **Local polling** — no cloud dependency after setup
 - **TPAP protocol** — SPAKE2+ handshake with cloud credentials
 - 27 entities per device across 6 platforms:
@@ -30,6 +31,8 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 - Voltage (V), Current (A)
 - WiFi Signal (dBm), WiFi Signal Level, WiFi SSID
 - On Since (timestamp), Device ID
+
+> **Note:** Today Energy, Today Runtime, Month Energy, and Month Runtime are fetched from the device's internal counters. These counters require an active internet connection on the plug to stay accurate — if the plug loses internet (even while on locally), these daily/monthly stats may stop updating or be incorrect. Power, Total Energy, Voltage, Current, and On Time are purely local and unaffected.
 
 ### Binary Sensors
 - Overheat, Power Overload, Overcurrent, Charging Protection
@@ -62,15 +65,34 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 ## Setup
 
+The integration uses a **hub model**: one config entry per TP-Link account (the "hub"), with one or more **device subentries** (one per plug) under it. Credentials are stored once on the hub; each device only stores its host address.
+
+### First device (creates the hub)
+
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **"Tapo P110"**
 3. Enter:
    - **IP Address or Hostname** — your Tapo P110's local address (e.g. `192.168.1.100`)
    - **TP-Link Account Email** — your TP-Link cloud account email
    - **TP-Link Account Password** — your TP-Link cloud account password
-4. Click **Submit** — the integration will perform the TPAP handshake and set up all entities
+4. Click **Submit** — the integration will perform the TPAP handshake, create the hub, and add the first device
 
-> **Note:** Cloud credentials are required for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
+### Additional devices (same account)
+
+1. Open the existing **Tapo P110** hub entry in **Settings → Devices & Services**
+2. Click **Add Device**
+3. Enter the **IP Address or Hostname** of the next plug
+4. Click **Submit** — the device is validated against the hub's credentials and added as a subentry
+
+### Multiple accounts
+
+Add the integration again with a different email + password to create a second hub. Each hub is independent.
+
+### Discovery
+
+Tapo P110 plugs are discovered via zeroconf (`tplink*`). If a hub already exists, discovered plugs are offered for addition to an existing hub; if no hub exists, the full setup form is shown.
+
+> **Note:** Cloud credentials are required only for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
 
 ## Requirements
 

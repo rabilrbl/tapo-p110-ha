@@ -306,6 +306,16 @@ class TapoP110Client:
         self._device_info = self._send_request("get_device_info", {})
         return {**self._device_info, "mac": self._device_mac}
 
+    def discover_only(self) -> dict[str, Any]:
+        """Perform only the discover step (no PAKE) — returns {'mac': ...}."""
+        resp = _post_json(
+            self._base_url,
+            {"method": "login", "params": {"sub_method": "discover"}},
+        )
+        if resp.get("error_code") != 0:
+            raise TapoConnectionError(f"Discover failed: {resp.get('error_code')}")
+        return {"mac": resp["result"].get("mac", "")}
+
     def _send_request(
         self, method: str, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
