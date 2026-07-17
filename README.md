@@ -32,7 +32,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 - WiFi Signal (dBm), WiFi Signal Level, WiFi SSID
 - On Since (timestamp), Device ID
 
-> **Note:** Today Energy, Today Runtime, Month Energy, and Month Runtime are fetched from the device's internal counters. These counters require an active internet connection on the plug to stay accurate — if the plug loses internet (even while on locally), these daily/monthly stats may stop updating or be incorrect. Power, Total Energy, Voltage, Current, and On Time are purely local and unaffected.
+> **Note:** Today Energy, Today Runtime, Month Energy, and Month Runtime show **Unavailable** when the plug has no internet access. Power, Total Energy, Voltage, Current, and On Time are purely local.
 
 ### Binary Sensors
 - Overheat, Power Overload, Overcurrent, Charging Protection
