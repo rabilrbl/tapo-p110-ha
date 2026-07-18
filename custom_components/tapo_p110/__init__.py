@@ -49,6 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TapoP110HubEntry) -> boo
             entry.data[CONF_USERNAME],
             entry.data[CONF_PASSWORD],
         )
+        coordinators[subentry.subentry_id] = coordinator
         try:
             await coordinator.async_config_entry_first_refresh()
         except Exception as exc:  # noqa: BLE001 - keep hub setup alive per device
@@ -57,9 +58,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TapoP110HubEntry) -> boo
                 host,
                 exc,
             )
-            await coordinator.async_shutdown()
-            continue
-        coordinators[subentry.subentry_id] = coordinator
 
     entry.runtime_data = coordinators
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
