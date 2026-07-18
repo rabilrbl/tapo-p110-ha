@@ -57,7 +57,9 @@ async def async_setup_entry(
     for subentry in entry.subentries.values():
         if subentry.subentry_type != SUBENTRY_TYPE_DEVICE:
             continue
-        coordinator = coordinators[subentry.subentry_id]
+        coordinator = coordinators.get(subentry.subentry_id)
+        if coordinator is None:
+            continue
         entities = [
             TapoP110PowerSwitch(coordinator, SWITCHES[0], subentry.subentry_id),
             TapoP110AutoOffSwitch(coordinator, SWITCHES[1], subentry.subentry_id),
