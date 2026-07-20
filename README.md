@@ -98,7 +98,8 @@ Tapo P110 plugs are discovered via zeroconf (`tplink*`). If a hub already exists
 ## Requirements
 
 - Home Assistant 2026.7+
-- `ecdsa` and `cryptography` packages (included in HA by default)
+- `cryptography` package (bundled with Home Assistant)
+- `ecdsa` package — declared in `manifest.json` `requirements`, installed automatically by HACS on first setup
 
 ## Supported Devices
 
