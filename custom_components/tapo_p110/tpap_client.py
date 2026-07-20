@@ -317,9 +317,19 @@ class TapoP110Client:
         return {"mac": resp["result"].get("mac", "")}
 
     def _send_request(
-        self, method: str, params: dict[str, Any] | None = None
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        _retried: bool = False,
     ) -> dict[str, Any]:
-        """Send encrypted request to device."""
+        """Send encrypted request to device.
+
+        ``_retried`` bounds retry recursion to one level: a 403 or decrypt
+        failure re-handshakes and retries exactly once; a second failure is
+        raised as ``TapoConnectionError`` instead of recursing without bound
+        (a device that persistently 403s would otherwise exhaust the stack).
+        """
         self._ensure_session()
         if self._ds_url is None or self._seq is None:
             raise TapoConnectionError("No active session")
@@ -340,9 +350,13 @@ class TapoP110Client:
             resp_data = resp.read()
         except urllib.error.HTTPError as exc:
             if exc.code == 403:
+                if _retried:
+                    raise TapoConnectionError(
+                        "Repeated 403 after re-handshake"
+                    ) from exc
                 self._ds_url = None
                 self._ensure_session()
-                return self._send_request(method, params)
+                return self._send_request(method, params, _retried=True)
             raise TapoConnectionError(f"HTTP error {exc.code}") from exc
         except urllib.error.URLError as exc:
             raise TapoConnectionError(str(exc.reason)) from exc
@@ -352,9 +366,13 @@ class TapoP110Client:
         try:
             decrypted = cipher.decrypt(resp_nonce, resp_data[4:], None)
         except Exception:
+            if _retried:
+                raise TapoConnectionError(
+                    "Repeated decrypt failure after re-handshake"
+                )
             self._ds_url = None
             self._ensure_session()
-            return self._send_request(method, params)
+            return self._send_request(method, params, _retried=True)
 
         self._seq = seq + 1
         result = json.loads(decrypted)
