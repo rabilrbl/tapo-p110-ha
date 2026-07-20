@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # GitHub Actions — keeps checkout, setup-uv, etc. on latest versions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+
+  # Python dev dependencies via uv lockfile
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
