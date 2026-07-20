@@ -43,7 +43,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 ### Number
 - Auto-Off After (box input, 0–1439 min)
-- Power Protection Threshold (box input, 1–3580W)
+- Power Protection Threshold (box input, 0–3580W)
 
 ### Diagnostics
 - Full raw device state dump with redacted sensitive fields
@@ -94,6 +94,8 @@ Add the integration again with a different email + password to create a second h
 Tapo P110 plugs are discovered via zeroconf (`tplink*`). If a hub already exists, discovered plugs are offered for addition to an existing hub; if no hub exists, the full setup form is shown.
 
 > **Note:** Cloud credentials are required only for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
+
+> **Note:** Commands (power on/off, LED mode, auto-off timer, power protection, etc.) require the plug to be **online on the local network**. The TPAP protocol negotiates a fresh encrypted session for each command via a live SPAKE2+ handshake — there is no cloud relay or offline command queue. If the plug is unreachable, commands fail with a connection error and no state change occurs; retry once the plug is back online. State polling resumes automatically when the plug reconnects.
 
 ## Requirements
 
