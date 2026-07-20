@@ -126,4 +126,4 @@ class TapoP110BinarySensor(TapoP110Entity, BinarySensorEntity):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.data is not None
+        return self.coordinator.data is not None and self.is_on is not None
