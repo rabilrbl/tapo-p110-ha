@@ -10,6 +10,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import (
+    ConfigEntryAuthFailed,
     DataUpdateCoordinator,
     UpdateFailed,
 )
@@ -51,9 +52,11 @@ class TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self.client.get_all_data
             )
         except TapoAuthError as exc:
-            # Auth failed — reset session so next poll does fresh handshake
+            # Auth failed — surface to HA so it starts a re-auth flow instead
+            # of retrying a bad credential forever. Session is dropped so the
+            # next poll does a fresh handshake once credentials are corrected.
             await self.hass.async_add_executor_job(self.client.shutdown)
-            raise UpdateFailed(f"Auth error: {exc}") from exc
+            raise ConfigEntryAuthFailed(f"Auth error: {exc}") from exc
         except TapoConnectionError as exc:
             # Device unreachable or session stale — reset for fresh handshake
             await self.hass.async_add_executor_job(self.client.shutdown)

@@ -505,7 +505,12 @@ class TapoP110Client:
         ]:
             try:
                 data[key] = self._send_request(method, {})
+            except TapoAuthError:
+                # A genuine auth failure is not best-effort — surface it so the
+                # coordinator raises ConfigEntryAuthFailed (re-auth flow).
+                raise
             except Exception:
+                # Best-effort: partial data is acceptable for these endpoints.
                 pass
         return data
 
