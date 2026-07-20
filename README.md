@@ -32,7 +32,8 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 - WiFi Signal (dBm), WiFi Signal Level, WiFi SSID
 - On Since (timestamp), Device ID
 
-> **Note:** Some stats may need internet connection on the plug. Like Today Energy, Today Runtime, Month Energy, and Month Runtime may show **Unavailable** when the plug has no internet access.
+> [!NOTE]
+> Some sensors require the plug to have internet access: **Today Energy**, **Today Runtime**, **Month Energy**, and **Month Runtime** may show **Unavailable** when the plug has no internet access. See [Internet-dependent sensors](#internet-dependent-sensors) below for the full list.
 
 ### Binary Sensors
 - Overheat, Power Overload, Overcurrent, Charging Protection
@@ -47,6 +48,19 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 ### Diagnostics
 - Full raw device state dump with redacted sensitive fields
+
+## Internet-dependent sensors
+
+The Tapo P110 computes some statistics on the device side and only updates them when it has internet access (cloud sync). Without internet access, these entities show **Unavailable** until connectivity is restored — this is a device firmware limitation, not an integration bug:
+
+| Entity | Reason |
+|---|---|
+| Today Energy | Device-side daily energy counter requires cloud time sync |
+| Today Runtime | Daily runtime counter requires cloud time sync |
+| Month Energy | Monthly energy counter requires cloud time sync |
+| Month Runtime | Monthly runtime counter requires cloud time sync |
+
+All other sensors (Power, Total Energy, Voltage, Current, On Time, On Since, WiFi, Device ID) and every command (power, LED, auto-off, power protection) work fully offline over the local network — subject to the plug being reachable on LAN (see the [!IMPORTANT] note under [Discovery](#discovery)).
 
 ## Installation
 
@@ -93,9 +107,11 @@ Add the integration again with a different email + password to create a second h
 
 Tapo P110 plugs are discovered via zeroconf (`tplink*`). If a hub already exists, discovered plugs are offered for addition to an existing hub; if no hub exists, the full setup form is shown.
 
-> **Note:** Cloud credentials are required only for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
+> [!NOTE]
+> Cloud credentials are required only for the SPAKE2+ key exchange. After setup, all communication is local — no cloud dependency for polling.
 
-> **Note:** Commands (power on/off, LED mode, auto-off timer, power protection, etc.) require the plug to be **online on the local network**. The TPAP protocol negotiates a fresh encrypted session for each command via a live SPAKE2+ handshake — there is no cloud relay or offline command queue. If the plug is unreachable, commands fail with a connection error and no state change occurs; retry once the plug is back online. State polling resumes automatically when the plug reconnects.
+> [!IMPORTANT]
+> Commands (power on/off, LED mode, auto-off timer, power protection, etc.) require the plug to be **online on the local network**. The TPAP protocol negotiates a fresh encrypted session for each command via a live SPAKE2+ handshake — there is no cloud relay or offline command queue. If the plug is unreachable, commands fail with a connection error and no state change occurs; retry once the plug is back online. State polling resumes automatically when the plug reconnects.
 
 ## Requirements
 
