@@ -1,8 +1,8 @@
 """Number platform for Tapo P110."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.number import (
     NumberEntity,
@@ -10,7 +10,6 @@ from homeassistant.components.number import (
     NumberMode,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TapoP110HubEntry
@@ -117,9 +116,7 @@ class TapoP110Number(TapoP110Entity, NumberEntity):
         key = self.entity_description.key
         try:
             if key == "auto_off_minutes":
-                await self.hass.async_add_executor_job(
-                    self.coordinator.client.set_auto_off_minutes, int(value)
-                )
+                await self.hass.async_add_executor_job(self.coordinator.client.set_auto_off_minutes, int(value))
             elif key == "power_protection_threshold":
                 await self.hass.async_add_executor_job(
                     self.coordinator.client.set_power_protection_threshold, int(value)

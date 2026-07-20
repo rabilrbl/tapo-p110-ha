@@ -1,4 +1,5 @@
 """Entity base for Tapo P110."""
+
 from __future__ import annotations
 
 import base64
@@ -34,9 +35,7 @@ class TapoP110Entity(CoordinatorEntity[TapoP110DataCoordinator]):
         self._attr_device_info = build_device_info(coordinator, subentry_id)
 
 
-def build_device_info(
-    coordinator: TapoP110DataCoordinator, subentry_id: str
-) -> DeviceInfo:
+def build_device_info(coordinator: TapoP110DataCoordinator, subentry_id: str) -> DeviceInfo:
     """Build DeviceInfo from current coordinator data (placeholders when offline)."""
     info = coordinator.data.get("device_info", {}) if coordinator.data else {}
 

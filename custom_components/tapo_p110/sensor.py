@@ -1,9 +1,10 @@
 """Sensor platform for Tapo P110."""
+
 from __future__ import annotations
 
 import base64
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -13,14 +14,13 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    EntityCategory,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfPower,
-    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TapoP110HubEntry
@@ -38,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _format_duration(seconds: int) -> str:
     """Format seconds into a human-readable duration string.
-    
+
     Scales up: seconds → minutes → hours → days → months → years.
     Only shows non-zero leading units, trailing units are zero-padded.
     Example: 3661s → "1h 1m 1s", 90061s → "1d 1h 1m 1s"
@@ -51,7 +51,7 @@ def _format_duration(seconds: int) -> str:
     # Approximate months and years from days
     mo, d = divmod(d, 30)
     y, mo = divmod(mo, 12)
-    
+
     parts = []
     if y:
         parts.append(f"{y}y")
@@ -65,13 +65,14 @@ def _format_duration(seconds: int) -> str:
         parts.append(f"{m}m")
     if s or not parts:
         parts.append(f"{s}s")
-    
+
     # Show at most 3 most significant non-zero units
     # But always show down to seconds if total < 1 minute
     result = parts[0] if parts else "0s"
     for p in parts[1:3]:
         result += f" {p}"
     return result
+
 
 SENSORS: tuple[SensorEntityDescription, ...] = (
     # Power & Energy
@@ -322,7 +323,7 @@ class TapoP110Sensor(TapoP110Entity, SensorEntity):
                 # resets to ~2000-01-01); surface Unavailable instead.
                 and timestamp > _MIN_PLAUSIBLE_EPOCH
             ):
-                return datetime.fromtimestamp(timestamp - on_time, tz=timezone.utc)
+                return datetime.fromtimestamp(timestamp - on_time, tz=UTC)
             return None
 
         # Device ID

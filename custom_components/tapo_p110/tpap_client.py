@@ -3,6 +3,7 @@
 Implements the TP-Link Adaptive Protocol (TPAP) using SPAKE2+ P-256
 key exchange and AES-128-CCM encrypted data channel.
 """
+
 from __future__ import annotations
 
 import base64
@@ -33,12 +34,8 @@ class TapoConnectionError(Exception):
 
 
 # SPAKE2+ P-256 suite constants (suite type 1)
-_M_COMP = bytes.fromhex(
-    "02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f"
-)
-_N_COMP = bytes.fromhex(
-    "03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49"
-)
+_M_COMP = bytes.fromhex("02886e2f97ace46e55ba9dd7242579f2993b64e16ef3dcab95afd497333d8fa12f")
+_N_COMP = bytes.fromhex("03d8bbd6c639c62937b04d997f38c3770719c629d7014d49a24b4f98baa1292b49")
 _PAKE_CONTEXT_TAG = b"PAKE V1"
 
 _CIPHER_PARAMS = {
@@ -55,7 +52,7 @@ _NIST = NIST256p
 _CRYPTO_CURVE = ec.SECP256R1()
 _CURVE = _NIST.curve
 _GENERATOR = _NIST.generator
-_ORDER = _NIST.generator.order()
+_ORDER: int = _NIST.generator.order()  # type: ignore[reportAssignmentType]
 
 
 def _md5_hex(value: str) -> str:
@@ -159,9 +156,7 @@ class TapoP110Client:
             {"method": "login", "params": {"sub_method": "discover"}},
         )
         if discover_resp.get("error_code") != 0:
-            raise TapoConnectionError(
-                f"Discover failed: {discover_resp.get('error_code')}"
-            )
+            raise TapoConnectionError(f"Discover failed: {discover_resp.get('error_code')}")
         result = discover_resp["result"]
         self._device_mac = result.get("mac", "")
 
@@ -181,9 +176,7 @@ class TapoP110Client:
             {"method": "login", "params": register_params},
         )
         if register_resp.get("error_code") != 0:
-            raise TapoAuthError(
-                f"Register failed: {register_resp.get('error_code')}"
-            )
+            raise TapoAuthError(f"Register failed: {register_resp.get('error_code')}")
         reg_result = register_resp["result"]
 
         # Build credentials (passwd_id=2 → sha1(password))
@@ -193,11 +186,10 @@ class TapoP110Client:
         if passwd_id == 2:
             credentials_string = _sha1_hex(self._password)
         elif passwd_id == 1:
-            from passlib.hash import md5_crypt
+            from passlib.hash import md5_crypt  # type: ignore[import-not-found,attr-defined]
+
             prefix = params.get("passwd_prefix", "")
-            credentials_string = md5_crypt.using(
-                salt=prefix[3:11] if prefix else ""
-            ).hash(self._password)
+            credentials_string = md5_crypt.using(salt=prefix[3:11] if prefix else "").hash(self._password)
         else:
             credentials_string = self._password
 
@@ -232,9 +224,7 @@ class TapoP110Client:
         r_enc = _xy_to_uncompressed(r_pt.x(), r_pt.y())
 
         r_prime = r_pt + (-(w * n_pt))
-        z_enc = _xy_to_uncompressed(
-            (x * r_prime).x(), (x * r_prime).y()
-        )
+        z_enc = _xy_to_uncompressed((x * r_prime).x(), (x * r_prime).y())
         v_enc = _xy_to_uncompressed(
             ((h % _ORDER) * r_prime).x(),
             ((h % _ORDER) * r_prime).y(),
@@ -242,9 +232,7 @@ class TapoP110Client:
         m_enc = _xy_to_uncompressed(m_pt.x(), m_pt.y())
         n_enc = _xy_to_uncompressed(n_pt.x(), n_pt.y())
 
-        ctx_hash = _sha256(
-            _PAKE_CONTEXT_TAG + _unb64(user_random) + _unb64(dev_random)
-        )
+        ctx_hash = _sha256(_PAKE_CONTEXT_TAG + _unb64(user_random) + _unb64(dev_random))
         transcript = (
             _len8le(ctx_hash)
             + _len8le(b"")
@@ -277,9 +265,7 @@ class TapoP110Client:
             },
         )
         if share_resp.get("error_code") != 0:
-            raise TapoAuthError(
-                f"Share failed: {share_resp.get('error_code')}"
-            )
+            raise TapoAuthError(f"Share failed: {share_resp.get('error_code')}")
         share_result = share_resp["result"]
         dev_confirm = share_result.get("dev_confirm", "").lower()
         if dev_confirm != _b64(expected_dev_confirm).lower():
@@ -292,12 +278,8 @@ class TapoP110Client:
 
         # Derive session keys
         ks, ki, ns, ni, kl = _CIPHER_PARAMS["aes_128_ccm"]
-        self._session_key = HKDF(
-            crypto_hashes.SHA256(), kl, ks, ki
-        ).derive(shared_key)
-        self._base_nonce = HKDF(
-            crypto_hashes.SHA256(), 12, ns, ni
-        ).derive(shared_key)
+        self._session_key = HKDF(crypto_hashes.SHA256(), kl, ks, ki).derive(shared_key)
+        self._base_nonce = HKDF(crypto_hashes.SHA256(), 12, ns, ni).derive(shared_key)
         self._ds_url = f"{self._base_url}/stok={session_id}/ds"
         self._seq = start_seq
         self._session_expiry = time.monotonic() + 86400
@@ -351,9 +333,7 @@ class TapoP110Client:
         except urllib.error.HTTPError as exc:
             if exc.code == 403:
                 if _retried:
-                    raise TapoConnectionError(
-                        "Repeated 403 after re-handshake"
-                    ) from exc
+                    raise TapoConnectionError("Repeated 403 after re-handshake") from exc
                 self._ds_url = None
                 self._ensure_session()
                 return self._send_request(method, params, _retried=True)
@@ -365,11 +345,9 @@ class TapoP110Client:
         resp_nonce = self._base_nonce[:-4] + struct.pack(">I", resp_seq)
         try:
             decrypted = cipher.decrypt(resp_nonce, resp_data[4:], None)
-        except Exception:
+        except Exception as exc:
             if _retried:
-                raise TapoConnectionError(
-                    "Repeated decrypt failure after re-handshake"
-                )
+                raise TapoConnectionError("Repeated decrypt failure after re-handshake") from exc
             self._ds_url = None
             self._ensure_session()
             return self._send_request(method, params, _retried=True)
@@ -426,7 +404,7 @@ class TapoP110Client:
 
     def set_default_state(self, state_type: str) -> None:
         """Set default state: 'last_states', 'on', or 'off'.
-        
+
         Device stores on/off as {"type": "custom", "state": {"on": true/false}}.
         """
         if state_type == "last_states":
@@ -436,16 +414,17 @@ class TapoP110Client:
         elif state_type == "off":
             self._send_request("set_device_info", {"default_states": {"type": "custom", "state": {"on": False}}})
 
-
     def set_auto_update(self, enable: bool) -> None:
         """Toggle auto firmware update. Must send all fields or device rejects."""
         info = self.get_auto_update_info()
-        self._send_request("set_auto_update_info", {
-            "enable": enable,
-            "time": info.get("time", 180),
-            "random_range": info.get("random_range", 120),
-        })
-
+        self._send_request(
+            "set_auto_update_info",
+            {
+                "enable": enable,
+                "time": info.get("time", 180),
+                "random_range": info.get("random_range", 120),
+            },
+        )
 
     def set_auto_off_enabled(self, enable: bool) -> None:
         config = self.get_auto_off_config()

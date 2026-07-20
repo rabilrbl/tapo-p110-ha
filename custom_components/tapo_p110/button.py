@@ -1,12 +1,13 @@
 """Button platform for Tapo P110."""
+
 from __future__ import annotations
 
 import logging
 from typing import Any
 
 from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TapoP110HubEntry

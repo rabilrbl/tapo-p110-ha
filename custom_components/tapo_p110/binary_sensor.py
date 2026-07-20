@@ -1,8 +1,8 @@
 """Binary sensor platform for Tapo P110."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -49,10 +49,7 @@ BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
 
 def _build_entities(coordinator: TapoP110DataCoordinator, subentry_id: str) -> list:
     """Build the binary-sensor entities for one device subentry."""
-    return [
-        TapoP110BinarySensor(coordinator, desc, subentry_id)
-        for desc in BINARY_SENSORS
-    ]
+    return [TapoP110BinarySensor(coordinator, desc, subentry_id) for desc in BINARY_SENSORS]
 
 
 async def async_setup_entry(

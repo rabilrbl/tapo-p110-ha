@@ -8,6 +8,7 @@ N device subentries (one per plug, holding only host).
 - ``TapoP110DeviceSubentryFlow`` creates/reconfigures a device subentry under
   an existing hub.
 """
+
 from __future__ import annotations
 
 import base64
@@ -53,9 +54,7 @@ def _decode_nickname(raw: str, fallback: str) -> str:
         return fallback
 
 
-async def _validate_device(
-    hass: HomeAssistant, host: str, username: str, password: str
-) -> tuple[str, str]:
+async def _validate_device(hass: HomeAssistant, host: str, username: str, password: str) -> tuple[str, str]:
     """Handshake against a device and return ``(mac, nickname)``.
 
     Raises ``vol.Invalid``-style flow errors by re-raising Tapo errors mapped
@@ -73,16 +72,16 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 2
 
+    _discovered_host: str | None = None
+    _zconf_host: str | None = None
+    _zconf_mac: str = ""
+
     @classmethod
-    def async_get_supported_subentry_types(
-        cls, config_entry: Any
-    ) -> dict[str, type[ConfigSubentryFlow]]:
+    def async_get_supported_subentry_types(cls, config_entry: Any) -> dict[str, type[ConfigSubentryFlow]]:
         """Return the subentry types supported by this hub entry."""
         return {SUBENTRY_TYPE_DEVICE: TapoP110DeviceSubentryFlow}
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """First-time hub setup: account credentials + first device host."""
         errors: dict[str, str] = {}
         # Pre-fill host from zeroconf discovery if present.
@@ -93,9 +92,7 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
             username = user_input[CONF_USERNAME]
             password = user_input[CONF_PASSWORD]
             try:
-                mac, nickname = await _validate_device(
-                    self.hass, host, username, password
-                )
+                mac, nickname = await _validate_device(self.hass, host, username, password)
             except TapoAuthError:
                 errors["base"] = "invalid_auth"
             except TapoConnectionError:
@@ -126,13 +123,9 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_PASSWORD): str,
             }
         )
-        return self.async_show_form(
-            step_id="user", data_schema=schema, errors=errors
-        )
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
 
-    async def async_step_zeroconf(
-        self, discovery_info: ZeroconfServiceInfo
-    ) -> ConfigFlowResult:
+    async def async_step_zeroconf(self, discovery_info: ZeroconfServiceInfo) -> ConfigFlowResult:
         """Handle zeroconf discovery of a tplink* device."""
         host = discovery_info.host
         # Lightweight discover to obtain MAC for dedup (no credentials needed).
@@ -175,8 +168,8 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
         if host is not None:
             self._zconf_host = host
             self._zconf_mac = mac
-        host = getattr(self, "_zconf_host", host or "")
-        mac = getattr(self, "_zconf_mac", mac or "")
+        host = self._zconf_host or host or ""
+        mac = self._zconf_mac or mac or ""
 
         hubs = self.hass.config_entries.async_entries(DOMAIN)
         hub_options = {h.entry_id: h.title for h in hubs}
@@ -195,9 +188,7 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
                 username = hub.data[CONF_USERNAME]
                 password = hub.data[CONF_PASSWORD]
                 try:
-                    dev_mac, nickname = await _validate_device(
-                        self.hass, host, username, password
-                    )
+                    dev_mac, nickname = await _validate_device(self.hass, host, username, password)
                 except TapoAuthError:
                     errors["base"] = "invalid_auth"
                 except TapoConnectionError:
@@ -206,13 +197,11 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
                     errors["base"] = "unknown"
                 else:
                     # Dedup against existing subentries on this hub.
-                    existing = {
-                        s.unique_id for s in hub.subentries.values()
-                    }
+                    existing = {s.unique_id for s in hub.subentries.values()}
                     if dev_mac and dev_mac in existing:
                         return self.async_abort(reason="already_configured")
                     subentry = ConfigSubentry(
-                        data={CONF_HOST: host},
+                        data={CONF_HOST: host},  # type: ignore[reportArgumentType]  # HA stub wants MappingProxyType; dict works at runtime
                         subentry_type=SUBENTRY_TYPE_DEVICE,
                         title=f"Tapo P110 ({nickname})",
                         unique_id=dev_mac or None,
@@ -231,9 +220,7 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={"host": host},
         )
 
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Reconfigure the hub's account credentials (username+password)."""
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
@@ -243,22 +230,17 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
             password = user_input[CONF_PASSWORD]
             # Validate against any existing device subentry's host.
             device_host = next(
-                (
-                    s.data[CONF_HOST]
-                    for s in entry.subentries.values()
-                    if s.subentry_type == SUBENTRY_TYPE_DEVICE
-                ),
+                (s.data[CONF_HOST] for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_DEVICE),
                 None,
             )
             if device_host is None:
                 # No devices yet — store creds unvalidated.
                 return self.async_update_and_abort(
-                    entry, data={CONF_USERNAME: username, CONF_PASSWORD: password},
+                    entry,
+                    data={CONF_USERNAME: username, CONF_PASSWORD: password},
                 )
             try:
-                await _validate_device(
-                    self.hass, device_host, username, password
-                )
+                await _validate_device(self.hass, device_host, username, password)
             except TapoAuthError:
                 errors["base"] = "invalid_auth"
             except TapoConnectionError:
@@ -267,16 +249,15 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "unknown"
             else:
                 return self.async_update_and_abort(
-                    entry, data={CONF_USERNAME: username, CONF_PASSWORD: password},
+                    entry,
+                    data={CONF_USERNAME: username, CONF_PASSWORD: password},
                 )
 
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_USERNAME, default=entry.data.get(CONF_USERNAME, "")
-                    ): str,
+                    vol.Required(CONF_USERNAME, default=entry.data.get(CONF_USERNAME, "")): str,
                     vol.Required(CONF_PASSWORD): str,
                 }
             ),
@@ -287,9 +268,7 @@ class TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN):
 class TapoP110DeviceSubentryFlow(ConfigSubentryFlow):
     """Flow for adding/reconfiguring a Tapo P110 device subentry."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         """Add a device subentry to the parent hub."""
         errors: dict[str, str] = {}
         entry = self._get_entry()
@@ -299,9 +278,7 @@ class TapoP110DeviceSubentryFlow(ConfigSubentryFlow):
             username = entry.data[CONF_USERNAME]
             password = entry.data[CONF_PASSWORD]
             try:
-                mac, nickname = await _validate_device(
-                    self.hass, host, username, password
-                )
+                mac, nickname = await _validate_device(self.hass, host, username, password)
             except TapoAuthError:
                 errors["base"] = "invalid_auth"
             except TapoConnectionError:
@@ -326,9 +303,7 @@ class TapoP110DeviceSubentryFlow(ConfigSubentryFlow):
             errors=errors,
         )
 
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         """Reconfigure a device subentry's host."""
         errors: dict[str, str] = {}
         entry = self._get_entry()
@@ -351,14 +326,10 @@ class TapoP110DeviceSubentryFlow(ConfigSubentryFlow):
                 # The hub entry has an update_listener that reconciles
                 # subentries (per-device setup/teardown) on subentry change,
                 # so we update without reloading here.
-                return self.async_update_and_abort(
-                    entry, subentry, data={CONF_HOST: host}
-                )
+                return self.async_update_and_abort(entry, subentry, data={CONF_HOST: host})
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=vol.Schema(
-                {vol.Required(CONF_HOST, default=current_host): str}
-            ),
+            data_schema=vol.Schema({vol.Required(CONF_HOST, default=current_host): str}),
             errors=errors,
         )

@@ -12,14 +12,18 @@ independently. Adding/removing/reconfiguring a single device subentry only
 sets up or tears down that one subentry's coordinator + entities (no sibling
 reload) via ``_async_subentry_listener``.
 """
+
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback, EntityPlatform
 
 from .const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, DOMAIN, SUBENTRY_TYPE_DEVICE
 
@@ -63,10 +67,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: TapoP110HubEntry) -> boo
         coordinators[subentry.subentry_id] = coordinator
         try:
             await coordinator.async_config_entry_first_refresh()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _LOGGER.warning(
                 "Device %s (%s) not ready, will retry: %s",
-                subentry.title, subentry.subentry_id, exc,
+                subentry.title,
+                subentry.subentry_id,
+                exc,
             )
 
     entry.runtime_data = coordinators
@@ -75,9 +81,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TapoP110HubEntry) -> boo
     return True
 
 
-async def _async_subentry_listener(
-    hass: HomeAssistant, entry: TapoP110HubEntry
-) -> None:
+async def _async_subentry_listener(hass: HomeAssistant, entry: TapoP110HubEntry) -> None:
     """Reconcile device subentries with live coordinators (add/remove/reconfigure).
 
     Fired by ``async_add_subentry``/``async_remove_subentry``/``async_update_subentry``
@@ -113,18 +117,17 @@ async def _async_subentry_listener(
         coordinators[sid] = coordinator
         try:
             await coordinator.async_refresh()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             _LOGGER.warning(
                 "Device %s (%s) not ready, will retry: %s",
-                subentry.title, sid, exc,
+                subentry.title,
+                sid,
+                exc,
             )
         await _async_forward_subentry_setup(hass, entry, sid)
 
     # Remove coordinators for deleted device subentries.
-    live_ids = {
-        s.subentry_id for s in entry.subentries.values()
-        if s.subentry_type == SUBENTRY_TYPE_DEVICE
-    }
+    live_ids = {s.subentry_id for s in entry.subentries.values() if s.subentry_type == SUBENTRY_TYPE_DEVICE}
     for sid in list(coordinators):
         if sid in live_ids:
             continue
@@ -132,9 +135,29 @@ async def _async_subentry_listener(
         await coordinators.pop(sid).async_shutdown()
 
 
-async def _async_forward_subentry_setup(
-    hass: HomeAssistant, entry: TapoP110HubEntry, subentry_id: str
-) -> None:
+def _make_add_entities(hass: HomeAssistant, platform: EntityPlatform) -> AddConfigEntryEntitiesCallback:
+    """Build a sync ``AddConfigEntryEntitiesCallback`` shim for ``platform``.
+
+    ``EntityPlatform.async_add_entities`` is a coroutine; the platform handlers
+    call it synchronously (per the ``AddEntitiesCallback`` contract), so this
+    wraps it in a sync callable that schedules the coro. Capturing ``platform``
+    as a factory argument binds it by value (avoids B023 late-binding).
+    """
+
+    def _add_entities(
+        new_entities: Iterable[Entity],
+        update_before_add: bool = False,
+        *,
+        config_subentry_id: str | None = None,
+    ) -> None:
+        hass.async_create_task(
+            platform.async_add_entities(new_entities, update_before_add, config_subentry_id=config_subentry_id)
+        )
+
+    return _add_entities
+
+
+async def _async_forward_subentry_setup(hass: HomeAssistant, entry: TapoP110HubEntry, subentry_id: str) -> None:
     """Forward platform setup for a single device subentry's entities.
 
     Called from ``_async_subentry_listener`` for a newly-added or reconfigured
@@ -144,8 +167,9 @@ async def _async_forward_subentry_setup(
     ``platform.domain`` (sensor/switch/...), not ``platform.platform_name``
     (the integration domain, ``tapo_p110``).
     """
-    from . import binary_sensor, button, number, select, sensor, switch
     from homeassistant.helpers.entity_platform import async_get_platforms
+
+    from . import binary_sensor, button, number, select, sensor, switch
 
     platforms = async_get_platforms(hass, DOMAIN)
     handlers = {
@@ -160,26 +184,24 @@ async def _async_forward_subentry_setup(
         handler = handlers.get(platform.domain)
         if handler is None:
             continue
+
         # EntityPlatform.async_add_entities is a coroutine; the platform
         # handlers call it synchronously (per the AddEntitiesCallback
         # contract), so wrap it in a sync shim that schedules the coro.
-        def _add_entities(entities, *, update_before_add=False, config_subentry_id=None, _p=platform):
-            hass.async_create_task(
-                _p.async_add_entities(entities, update_before_add, config_subentry_id=config_subentry_id)
-            )
-        await handler(hass, entry, subentry_id, _add_entities)
+        # Use a factory to bind `platform` by value (avoids B023 late-binding
+        # and keeps the callback signature matching AddConfigEntryEntitiesCallback).
+        await handler(hass, entry, subentry_id, _make_add_entities(hass, platform))
 
 
-async def _async_unload_subentry(
-    hass: HomeAssistant, entry: TapoP110HubEntry, subentry_id: str
-) -> None:
+async def _async_unload_subentry(hass: HomeAssistant, entry: TapoP110HubEntry, subentry_id: str) -> None:
     """Remove a device subentry's entities + device-registry entry.
 
     Clears every entity and device tagged with ``config_subentry_id`` from the
     registries; HA removes the entities from their ``EntityPlatform`` via the
     registry. No per-platform unload code needed.
     """
-    from homeassistant.helpers import device_registry as dr, entity_registry as er
+    from homeassistant.helpers import device_registry as dr
+    from homeassistant.helpers import entity_registry as er
 
     er.async_get(hass).async_clear_config_subentry(entry.entry_id, subentry_id)
     dr.async_get(hass).async_clear_config_subentry(entry.entry_id, subentry_id)
@@ -215,9 +237,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # removals for the same set).
         for e in hass.config_entries.async_entries(DOMAIN):
             if e.version < 2 and hass.config_entries.async_get_entry(e.entry_id) is not None:
-                hass.async_create_task(
-                    _safe_remove_entry(hass, e.entry_id)
-                )
+                hass.async_create_task(_safe_remove_entry(hass, e.entry_id))
         return True
     return True
 
@@ -228,5 +248,5 @@ async def _safe_remove_entry(hass: HomeAssistant, entry_id: str) -> None:
         return
     try:
         await hass.config_entries.async_remove(entry_id)
-    except Exception:  # noqa: BLE001 — best-effort cleanup during migration
+    except Exception:
         _LOGGER.debug("Entry %s already removed during migration", entry_id)

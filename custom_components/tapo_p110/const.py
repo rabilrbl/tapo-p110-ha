@@ -1,4 +1,5 @@
 """Constants for Tapo P110."""
+
 from __future__ import annotations
 
 DOMAIN = "tapo_p110"

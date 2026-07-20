@@ -1,0 +1,14 @@
+{
+  "include": ["custom_components/tapo_p110", "tests"],
+  "exclude": ["**/__pycache__", "**/.pytest_cache", "**/.ruff_cache"],
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "pythonVersion": "3.14",
+  "typeCheckingMode": "standard",
+  // HA 2026.7+ entity base classes use propcache.cached_property for
+  // available/native_value/is_on/current_option; custom integrations
+  // overriding these with @property is valid at runtime but type-incompatible
+  // under strict checking. Disable until the integration migrates to
+  // cached_property (separate change). See design D3 / spec static-type-check.
+  "reportIncompatibleVariableOverride": false
+}
