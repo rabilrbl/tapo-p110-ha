@@ -35,7 +35,7 @@ NUMBERS: tuple[NumberEntityDescription, ...] = (
     NumberEntityDescription(
         key="power_protection_threshold",
         name="Power Protection Threshold",
-        native_min_value=1,
+        native_min_value=0,
         native_max_value=3580,
         native_step=1,
         mode=NumberMode.BOX,

@@ -317,9 +317,19 @@ class TapoP110Client:
         return {"mac": resp["result"].get("mac", "")}
 
     def _send_request(
-        self, method: str, params: dict[str, Any] | None = None
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        _retried: bool = False,
     ) -> dict[str, Any]:
-        """Send encrypted request to device."""
+        """Send encrypted request to device.
+
+        ``_retried`` bounds retry recursion to one level: a 403 or decrypt
+        failure re-handshakes and retries exactly once; a second failure is
+        raised as ``TapoConnectionError`` instead of recursing without bound
+        (a device that persistently 403s would otherwise exhaust the stack).
+        """
         self._ensure_session()
         if self._ds_url is None or self._seq is None:
             raise TapoConnectionError("No active session")
@@ -340,9 +350,13 @@ class TapoP110Client:
             resp_data = resp.read()
         except urllib.error.HTTPError as exc:
             if exc.code == 403:
+                if _retried:
+                    raise TapoConnectionError(
+                        "Repeated 403 after re-handshake"
+                    ) from exc
                 self._ds_url = None
                 self._ensure_session()
-                return self._send_request(method, params)
+                return self._send_request(method, params, _retried=True)
             raise TapoConnectionError(f"HTTP error {exc.code}") from exc
         except urllib.error.URLError as exc:
             raise TapoConnectionError(str(exc.reason)) from exc
@@ -352,9 +366,13 @@ class TapoP110Client:
         try:
             decrypted = cipher.decrypt(resp_nonce, resp_data[4:], None)
         except Exception:
+            if _retried:
+                raise TapoConnectionError(
+                    "Repeated decrypt failure after re-handshake"
+                )
             self._ds_url = None
             self._ensure_session()
-            return self._send_request(method, params)
+            return self._send_request(method, params, _retried=True)
 
         self._seq = seq + 1
         result = json.loads(decrypted)
@@ -418,9 +436,6 @@ class TapoP110Client:
         elif state_type == "off":
             self._send_request("set_device_info", {"default_states": {"type": "custom", "state": {"on": False}}})
 
-    def set_led_on(self, on: bool) -> None:
-        """Toggle LED on/off (maps to led_rule always/never)."""
-        self._send_request("set_led_info", {"led_rule": "always" if on else "never"})
 
     def set_auto_update(self, enable: bool) -> None:
         """Toggle auto firmware update. Must send all fields or device rejects."""
@@ -431,8 +446,6 @@ class TapoP110Client:
             "random_range": info.get("random_range", 120),
         })
 
-    def set_auto_off(self, enable: bool, delay_min: int) -> None:
-        self._send_request("set_auto_off_config", {"enable": enable, "delay_min": delay_min})
 
     def set_auto_off_enabled(self, enable: bool) -> None:
         config = self.get_auto_off_config()
@@ -464,8 +477,6 @@ class TapoP110Client:
             threshold = max_p
         self._send_request("set_protection_power", {"enabled": enabled, "protection_power": threshold})
 
-    def reboot(self) -> None:
-        self._send_request("reboot", {})
 
     # === Batch polling ===
     def get_all_data(self) -> dict[str, Any]:
@@ -487,7 +498,12 @@ class TapoP110Client:
         ]:
             try:
                 data[key] = self._send_request(method, {})
+            except TapoAuthError:
+                # A genuine auth failure is not a best-effort failure — surface
+                # it so the coordinator raises ConfigEntryAuthFailed (re-auth).
+                raise
             except Exception:
+                # Best-effort: partial data is acceptable for these endpoints.
                 pass
         return data
 
