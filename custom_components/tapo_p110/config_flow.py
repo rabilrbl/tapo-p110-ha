@@ -348,8 +348,9 @@ class TapoP110DeviceSubentryFlow(ConfigSubentryFlow):
             except Exception:
                 errors["base"] = "unknown"
             else:
-                # The hub entry has an update_listener that reloads it on
-                # subentry change, so we update without reloading here.
+                # The hub entry has an update_listener that reconciles
+                # subentries (per-device setup/teardown) on subentry change,
+                # so we update without reloading here.
                 return self.async_update_and_abort(
                     entry, subentry, data={CONF_HOST: host}
                 )

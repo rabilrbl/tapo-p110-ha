@@ -47,22 +47,46 @@ BINARY_SENSORS: tuple[BinarySensorEntityDescription, ...] = (
 )
 
 
+def _build_entities(coordinator: TapoP110DataCoordinator, subentry_id: str) -> list:
+    """Build the binary-sensor entities for one device subentry."""
+    return [
+        TapoP110BinarySensor(coordinator, desc, subentry_id)
+        for desc in BINARY_SENSORS
+    ]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TapoP110HubEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up Tapo P110 binary sensors, one set per device subentry."""
+    """Set up Tapo P110 binary sensors, one set per device subentry (initial setup)."""
     coordinators: dict[str, TapoP110DataCoordinator] = entry.runtime_data
     for subentry in entry.subentries.values():
         if subentry.subentry_type != SUBENTRY_TYPE_DEVICE:
             continue
-        coordinator = coordinators[subentry.subentry_id]
-        entities = [
-            TapoP110BinarySensor(coordinator, desc, subentry.subentry_id)
-            for desc in BINARY_SENSORS
-        ]
-        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+        if subentry.subentry_id not in coordinators:
+            continue
+        async_add_entities(
+            _build_entities(coordinators[subentry.subentry_id], subentry.subentry_id),
+            config_subentry_id=subentry.subentry_id,
+        )
+
+
+async def async_setup_subentry(
+    hass: HomeAssistant,
+    entry: TapoP110HubEntry,
+    subentry_id: str,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    """Set up Tapo P110 binary sensors for a single device subentry (post-setup add)."""
+    coordinators: dict[str, TapoP110DataCoordinator] = entry.runtime_data
+    if subentry_id not in coordinators:
+        return
+    async_add_entities(
+        _build_entities(coordinators[subentry_id], subentry_id),
+        config_subentry_id=subentry_id,
+    )
 
 
 class TapoP110BinarySensor(TapoP110Entity, BinarySensorEntity):
@@ -74,7 +98,7 @@ class TapoP110BinarySensor(TapoP110Entity, BinarySensorEntity):
         description: BinarySensorEntityDescription,
         subentry_id: str,
     ) -> None:
-        super().__init__(coordinator)
+        super().__init__(coordinator, subentry_id)
         self.entity_description = description
         self._attr_unique_id = f"{subentry_id}_{description.key}"
 
