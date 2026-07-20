@@ -39,9 +39,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 
 ### Button
 
-**Reload Device** is a CONFIG-category entity — find it on the device page under the config section, not on the main dashboard.
-
-- **Reload Device** — Drops the plug's SPAKE2+ session and forces an immediate re-poll (re-handshake + fresh data fetch). Use this when the plug's entities show stale or unavailable data but the plug itself is responsive (e.g. after a network change, DHCP renewal, or HA was offline for a while). Scoped to the single plug — does not affect other devices on the same hub.
+- **Reload Device** — Refresh device session with a new handshake. Use this when the plug's entities show stale or unavailable data but the plug itself is responsive (e.g. after a network change or DHCP renewal).
 
 ### Number
 - Auto-Off After (box input, 0–1439 min)
