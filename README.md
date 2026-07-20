@@ -59,8 +59,9 @@ The Tapo P110 computes some statistics on the device side and only updates them 
 | Today Runtime | Daily runtime counter requires cloud time sync |
 | Month Energy | Monthly energy counter requires cloud time sync |
 | Month Runtime | Monthly runtime counter requires cloud time sync |
+| On Since | Derived from the device clock, which needs NTP; without it the clock resets to ~2000-01-01 and On Since shows Unavailable |
 
-All other sensors (Power, Total Energy, Voltage, Current, On Time, On Since, WiFi, Device ID) and every command (power, LED, auto-off, power protection) work fully offline over the local network — subject to the plug being reachable on LAN (see the [!IMPORTANT] note under [Discovery](#discovery)).
+All other sensors (Power, Total Energy, Voltage, Current, On Time, WiFi, Device ID) and every command (power, LED, auto-off, power protection) work fully offline over the local network — subject to the plug being reachable on LAN (see the [!IMPORTANT] note under [Discovery](#discovery)).
 
 ## Installation
 

@@ -28,6 +28,11 @@ from .const import SUBENTRY_TYPE_DEVICE
 from .coordinator import TapoP110DataCoordinator
 from .entity import TapoP110Entity
 
+# Earliest plausible device epoch. Without internet/NTP the P110 RTC resets
+# to ~2000-01-01; treat an earlier clock as unsynced so on_since shows
+# Unavailable instead of a bogus far-past date.
+_MIN_PLAUSIBLE_EPOCH = 1735689600  # 2025-01-01 UTC
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -309,7 +314,14 @@ class TapoP110Sensor(TapoP110Entity, SensorEntity):
             dt = data.get("device_time", {})
             on_time = info.get("on_time")
             timestamp = dt.get("timestamp")
-            if on_time is not None and timestamp is not None and info.get("device_on"):
+            if (
+                on_time is not None
+                and timestamp is not None
+                and info.get("device_on")
+                # Reject bogus RTC defaults (plug offline/no NTP → clock
+                # resets to ~2000-01-01); surface Unavailable instead.
+                and timestamp > _MIN_PLAUSIBLE_EPOCH
+            ):
                 return datetime.fromtimestamp(timestamp - on_time, tz=timezone.utc)
             return None
 
