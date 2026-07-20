@@ -436,9 +436,6 @@ class TapoP110Client:
         elif state_type == "off":
             self._send_request("set_device_info", {"default_states": {"type": "custom", "state": {"on": False}}})
 
-    def set_led_on(self, on: bool) -> None:
-        """Toggle LED on/off (maps to led_rule always/never)."""
-        self._send_request("set_led_info", {"led_rule": "always" if on else "never"})
 
     def set_auto_update(self, enable: bool) -> None:
         """Toggle auto firmware update. Must send all fields or device rejects."""
@@ -449,8 +446,6 @@ class TapoP110Client:
             "random_range": info.get("random_range", 120),
         })
 
-    def set_auto_off(self, enable: bool, delay_min: int) -> None:
-        self._send_request("set_auto_off_config", {"enable": enable, "delay_min": delay_min})
 
     def set_auto_off_enabled(self, enable: bool) -> None:
         config = self.get_auto_off_config()
@@ -481,9 +476,6 @@ class TapoP110Client:
             max_p = self.get_max_power().get("max_power", 3580)
             threshold = max_p
         self._send_request("set_protection_power", {"enabled": enabled, "protection_power": threshold})
-
-    def reboot(self) -> None:
-        self._send_request("reboot", {})
 
     # === Batch polling ===
     def get_all_data(self) -> dict[str, Any]:
