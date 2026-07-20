@@ -7,7 +7,9 @@ Custom Home Assistant integration for the TP-Link **Tapo P110** smart plug, spea
 - **Domain**: `tapo_p110`
 - **Integration type**: `device`, `iot_class: local_polling`, 15s poll interval
 - **Target**: HA 2026.7+
-- **Runtime deps**: `ecdsa` + `cryptography` (assumed bundled with HA; `manifest.json` declares `requirements: []`)
+- **Version**: 2.2.2
+- **Architecture**: hub+subentry model — one config entry per TP-Link account (the hub), one device subentry per plug. Each subentry has its own `TapoP110DataCoordinator`.
+- **Runtime deps**: `ecdsa` (declared in `manifest.json` `requirements`), `cryptography` + `passlib` (bundled with HA; conditionally imported by `tpap_client.py` for `passwd_id==1`)
 - **Repo**: github.com/rabilrbl/tapo-p110-ha
 
 ## Architecture & Data Flow
@@ -15,33 +17,50 @@ Custom Home Assistant integration for the TP-Link **Tapo P110** smart plug, spea
 Single integration under `custom_components/tapo_p110/`. No external TPAP library — the protocol client is vendored in `tpap_client.py`.
 
 ```
-Config Flow (user/reconfigure)            HA setup
-  TapoP110Client.discover_and_handshake      async_setup_entry
-  (executor; SPAKE2+ over HTTP)                │
-        │                                       ▼
-        ▼                              TapoP110DataCoordinator
-  unique_id = MAC (sanitized)          (DataUpdateCoordinator[dict], 15s)
-  title = base64(nickname)                     │
-        │                                       ▼  hass.async_add_executor_job
-        ▼                              client.get_all_data()  (atomic device_info,
-  config entry stored                     best-effort 9 other endpoints)
-        │                                       │
-        └─► hass.data[DOMAIN][entry_id]         ▼
-                 = coordinator            coordinator.data (dict)
-                          │                     │
-                          ▼                     ▼
-            async_forward_entry_setups    TapoP110Entity(CoordinatorEntity)
-            [SENSOR, SWITCH, BINARY_SENSOR,   │  x6 platform subclasses
-             BUTTON, NUMBER, SELECT]         │  unique_id = f"{entry_id}_{key}"
-                                            ▼
-                                     27 entities per device
+Config Flow (hub entry)                HA setup
+  TapoP110ConfigFlow                     async_setup_entry
+  (account: username+password)              │
+  unique_id = normalized username            ▼
+        │                              For each device subentry:
+        ▼                                TapoP110DataCoordinator
+  Config Entry (hub)                     (DataUpdateCoordinator[dict], 15s)
+  ┌─subentries───────────┐                     │
+  │ device subentry 1     │          hass.async_add_executor_job
+  │ device subentry 2     │                     │
+  │ ...                   │                     ▼
+  └───────────────────────┘           client.get_all_data()
+        │                              (atomic device_info,
+        │                               best-effort 9 others)
+        │                                     │
+        ▼                                     ▼
+  entry.runtime_data                  coordinator.data (dict)
+  = { subentry_id: coordinator }              │
+                                               ▼
+                              TapoP110Entity(CoordinatorEntity)
+                              x6 platform subclasses per subentry
+                              unique_id = f"{subentry_id}_{key}"
+                              device identifiers = {(DOMAIN, subentry_id)}
 ```
 
-**Setup** (`__init__.py`): `async_setup_entry` **lazily imports** `TapoP110DataCoordinator` (keeps `cryptography`/`ecdsa` out of HA's import graph until an entry exists), constructs it, awaits `async_config_entry_first_refresh()`, stores it in `hass.data.setdefault(DOMAIN, {})[entry.entry_id]`, then forwards setups to the 6 platforms. `async_unload_entry` unloads platforms, pops the coordinator, and calls `coordinator.async_shutdown()` → `client.shutdown()`.
+**Setup** (`__init__.py`): `async_setup_entry` lazily imports `TapoP110DataCoordinator`, then iterates `entry.subentries` and builds one coordinator per device subentry (keyed by `subentry_id` on `entry.runtime_data`). A failed `async_config_entry_first_refresh` on one device does **not** abort hub setup — the coordinator stays in `runtime_data` with `last_update_success=False` and HA's 15s loop retries it. After all coordinators are built, `async_forward_entry_setups` registers the 6 platforms and `entry.add_update_listener(_async_subentry_listener)` registers the reconciliation listener.
 
-**Config flow** (`config_flow.py`): `TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN)`, `VERSION=1`. `async_step_user` reuses credentials from any existing entry (shows host-only form via `_get_existing_credentials()`) or shows the full host+username+password form. Validation = construct `TapoP110Client` and run `discover_and_handshake` in executor. Error mapping: `TapoAuthError`→`invalid_auth`, `TapoConnectionError`→`cannot_connect`, other→`unknown`. Unique id = MAC with `:`/`-` stripped; title = base64-decoded `nickname`. `async_step_reconfigure` re-validates and calls `async_update_reload_and_end`, updating host/username/password in place.
+**Subentry lifecycle** (`_async_subentry_listener`): Fired by add/remove/reconfigure events. Diffs `entry.subentries` against `entry.runtime_data`: new subentries get a coordinator + entities (via `_async_forward_subentry_setup`), host changes trigger a teardown + rebuild of just that subentry, deleted subentries get their entities + device-registry entries cleared (via `_async_unload_subentry`) and their coordinator shut down. Sibling subentries are never touched.
 
-**Coordinator** (`coordinator.py`): `TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]])`, `update_interval=timedelta(seconds=15)`. `_async_update_data` runs `client.get_all_data()` via `hass.async_add_executor_job`. **On ANY exception** it calls `client.shutdown()` (drops the session) and raises `UpdateFailed` — forces a full SPAKE2+ re-handshake on the next 15s poll (robust but not free; a transient blip re-handshakes). Empty data → `UpdateFailed("No data returned from device")`.
+**Platform forwarding** (`_async_forward_subentry_setup`): Maps each live `EntityPlatform` to its module's `async_setup_subentry` handler by `platform.domain` (sensor/switch/…). Uses `_make_add_entities` — a factory returning an `AddConfigEntryEntitiesCallback` shim that wraps the async `platform.async_add_entities` in `hass.async_create_task`.
+
+**Config flow** (`config_flow.py`): Two flow classes:
+- `TapoP110ConfigFlow(ConfigFlow, domain=DOMAIN, VERSION=2)`: creates/reconfigures the **hub** (account) entry. `async_step_user` collects host+username+password (or host-only if credentials exist). `async_step_zeroconf` handles zeroconf discovery with a hub-picker step. `async_step_reconfigure` updates hub credentials. Hub unique_id = normalized username; title = `Tapo P110 ({username})`. Returns `async_get_supported_subentry_types` mapping `SUBENTRY_TYPE_DEVICE` → `TapoP110DeviceSubentryFlow`.
+- `TapoP110DeviceSubentryFlow(ConfigSubentryFlow)`: creates/reconfigures a **device subentry** under an existing hub. Collects host only (credentials from parent hub entry). Deduplicates by MAC against existing subentries. Subentry unique_id = sanitized MAC; title = base64-decoded nickname (fallback to host). Error mapping: `TapoAuthError`→`invalid_auth`, `TapoConnectionError`→`cannot_connect`, other→`unknown`.
+
+**Coordinator** (`coordinator.py`): `TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]])`, `update_interval=timedelta(seconds=15)`. `_async_update_data` runs `client.get_all_data()` via `hass.async_add_executor_job`. Error mapping:
+- `TapoAuthError` → `ConfigEntryAuthFailed` (triggers HA re-auth flow) + `client.shutdown()`
+- `TapoConnectionError` → `UpdateFailed` + `client.shutdown()`
+- Unknown `Exception` → `UpdateFailed` + `client.shutdown()`
+- Empty data (`not data`) → `UpdateFailed("No data returned from device")` **without** `shutdown()`
+
+On success, `_async_sync_device_registry(data)` updates the device-registry row with live `device_info` fields and purges stale `device_id`-keyed rows left from v2.0.
+
+**Migration** (`async_migrate_entry`): v1→v2 is a **clean start**: all v1 entries (one per plug) are removed via `_safe_remove_entry` (concurrency-safe; ignores already-gone entries). The v2→v2.1 entity-identifier change (`device_id`→`subentry_id`) is **not** migrated — orphaned device-registry rows are cleaned once via the UI. The new `subentry_id`-keyed rows are created automatically.
 
 **TPAP client** (`tpap_client.py`, vendored, synchronous, stdlib `urllib.request` + 10s timeout):
 - `TapoAuthError`, `TapoConnectionError` (subclasses of `Exception`).
@@ -51,7 +70,9 @@ Config Flow (user/reconfigure)            HA setup
 - `get_all_data()`: **atomic** on `device_info` (failure aborts), **best-effort** on 9 other endpoints (per-call exceptions swallowed) → partial data is possible. Returns dict keyed: `device_info`, `energy_usage`, `emeter_data`, `device_usage`, `device_time`, `led_info`, `auto_update_info`, `auto_off_config`, `protection_power`, `max_power`.
 - Setters: `set_device_on`, `set_led_rule`, `set_default_state`, `set_led_on`, `set_auto_update` (re-reads info first to preserve time+random_range), `set_auto_off`/`set_auto_off_enabled`/`set_auto_off_minutes` (re-read config to preserve the other field), `set_power_protection_threshold` (0 disables), `set_power_protection_enabled` (preserves threshold; defaults to `get_max_power().max_power`=3580 if enabling with 0), `reboot()`.
 
-**Entity hierarchy** (`entity.py`): single base `TapoP110Entity(CoordinatorEntity[TapoP110DataCoordinator])` builds `DeviceInfo` from `coordinator.data["device_info"]` (base64-decoded `nickname`, `identifiers={(DOMAIN, device_id or entry_id)}`, manufacturer "TP-Link", model `f"P110 ({specs})"`). Each platform mixes in its HA entity class:
+**Entity hierarchy** (`entity.py`): single base `TapoP110Entity(CoordinatorEntity[TapoP110DataCoordinator])`. Each instance receives `coordinator` + `subentry_id`. `DeviceInfo` is anchored to `subentry_id` (not `device_id`): `identifiers={(DOMAIN, subentry_id)}`, name/model/sw_version/hw_version from `coordinator.data["device_info"]` (placeholders when offline). The coordinator re-syncs the device-registry row from live data on each successful poll.
+
+Each platform mixes in its HA entity class:
 
 | Platform file | Class | EntityDescription tuple |
 |---|---|---|
@@ -62,7 +83,7 @@ Config Flow (user/reconfigure)            HA setup
 | `button.py` | `TapoP110Button(TapoP110Entity, ButtonEntity)` | `BUTTONS` (1) |
 | `select.py` | `TapoP110Select(TapoP110Entity, SelectEntity)` | `SELECTS` (2) |
 
-Platform `async_setup_entry` pulls `coordinator = hass.data[DOMAIN][entry.entry_id]` and instantiates one entity per description in the module-level tuple. **Unique id convention**: `f"{entry.entry_id}_{description.key}"`. All command methods wrap synchronous `coordinator.client.*` via `hass.async_add_executor_job` and call `coordinator.async_request_refresh()` after success — **except** `button.py` (`reboot` does not refresh). Command methods catch `TapoAuthError`/`TapoConnectionError`.
+Platform `async_setup_entry` iterates all device subentries and creates one entity per description per subentry. `async_setup_subentry` creates entities for a single newly-added subentry. **Unique id convention**: `f"{subentry_id}_{description.key}"`. All command methods wrap synchronous `coordinator.client.*` via `hass.async_add_executor_job` and call `coordinator.async_request_refresh()` after success — **except** `button.py` (`reboot` does not refresh). Command methods catch `TapoAuthError`/`TapoConnectionError`.
 
 **Services**: none. `services.yaml` is a stub (`# Tapo P110 services (none yet)`). All controllable features are entities.
 
@@ -75,8 +96,17 @@ Platform `async_setup_entry` pulls `coordinator = hass.data[DOMAIN][entry.entry_
 ├── README.md                 # sole docs; install, setup, supported devices
 ├── hacs.json                 # {"name":"Tapo P110","render_readme":true}
 ├── icon.png                  # HACS display icon
-├── .gitignore                # __pycache__/, *.pyc, *.pyo, .DS_Store only
-├── brand/icon.png            # brand asset (not under custom_components)
+├── pyproject.toml             # dev dependencies (uv), ruff config, pytest config
+├── pyrightconfig.json         # basedpyright config (scoped to integration + tests)
+├── .gitignore                 # __pycache__/, *.pyc, .venv/, .pytest_cache/, .ruff_cache/, .pyright/
+├── .pre-commit-config.yaml   # ruff + basedpyright hooks (optional contributor step)
+├── .github/workflows/ci.yml  # lint + format-check + type-check + tests on push/PR
+├── brand/icon.png             # brand asset (not under custom_components)
+├── tests/
+│   ├── conftest.py            # shared fixtures (mock_urlopen, mock_client, spake2_vector)
+│   ├── fixtures/spake2_vector.json  # deterministic SPAKE2+ derivation test vector
+│   ├── test_tpap_client.py   # protocol/crypto/setters/batch-polling tests (34 tests)
+│   └── test_coordinator.py    # error-mapping invariant tests (5 tests)
 └── custom_components/
     └── tapo_p110/            # the integration (see Important Files)
         ├── translations/en.json
@@ -84,73 +114,79 @@ Platform `async_setup_entry` pulls `coordinator = hass.data[DOMAIN][entry.entry_
         └── *.py, manifest.json, strings.json, services.yaml
 ```
 
-No `tests/`, `docs/`, `scripts/`, `.github/`, `pyproject.toml`, `setup.py`, `requirements*.txt`, `ruff.toml`, `tox.ini`, `Makefile`, or `.pre-commit-config.yaml` exist.
-
 ## Development Commands
 
-There is **no build, test, lint, or CI pipeline**. The repo ships source + manifest + translations + icons only. Validation is done by running Home Assistant with the integration installed:
-
 ```bash
-# Manual install for local dev: copy the integration into an HA config dir
-cp -r custom_components/tapo_p110 /path/to/ha/config/custom_components/
-# then restart HA and add the "Tapo P110" integration via Settings → Devices & Services
+# Set up the dev environment (installs HA + all dev deps into .venv/)
+uv sync
 
-# HACS dev install: add this repo as a custom repository (category: Integration)
-#   https://github.com/rabilrbl/tapo-p110-ha
+# Lint
+uv run ruff check custom_components/tapo_p110/ tests/
+
+# Format check (or: uv run ruff format to auto-fix)
+uv run ruff format --check custom_components/tapo_p110/ tests/
+
+# Type-check (basedpyright, scoped to integration + tests)
+uv run basedpyright
+
+# Run tests (offline, deterministic, no real device required)
+uv run pytest
+
+# Optional: install pre-commit hooks for local lint/type-check on commit
+uv run pre-commit install
 ```
 
-If you add a dev toolchain (pytest, ruff, pre-commit), this section should be updated. Until then, there are no automated quality gates.
+Lint and type-check run on every push and PR via `.github/workflows/ci.yml`.
 
 ## Code Conventions & Common Patterns
 
 - **Async**: All HA-facing code is `async`. All TPAP I/O is **synchronous** (`tpap_client.py` uses stdlib `urllib.request`) and must be offloaded via `hass.async_add_executor_job(...)` — never call `client.*` methods directly from the event loop.
+- **Hub+subentry model**: One config entry (hub) per TP-Link account; one device subentry per plug. Coordinators are stored on `entry.runtime_data` keyed by `subentry_id`. Entities are per-subentry, not per-entry.
+- **Subentity unique-id**: `f"{subentry_id}_{description.key}"`. Device identifiers are `{(DOMAIN, subentry_id)}` — anchored to the subentry, not `device_id` (which is absent when the plug is offline at setup).
+- **Subentry reconciliation**: `_async_subentry_listener` fires on add/remove/reconfigure and diffs `entry.subentries` against `entry.runtime_data`. Only the affected subentry's coordinator + entities are touched; siblings are never disrupted.
 - **State access is defensive**: because `get_all_data` is best-effort for 9 of 10 endpoints, entity `native_value`/`available`/`is_on` properties use `.get()` with `None`/`False` fallbacks. `available` is `False` when `coordinator.data is None`. Follow this pattern for any new entity.
-- **Entity registration**: define a module-level tuple of `*EntityDescription` (e.g. `SENSORS`), iterate it in `async_setup_entry`, set `unique_id = f"{entry.entry_id}_{description.key}"`. Do not invent a second convention.
+- **Entity registration**: define a module-level tuple of `*EntityDescription` (e.g. `SENSORS`), iterate it in `async_setup_entry`/`async_setup_subentry`, set `_attr_unique_id = f"{subentry_id}_{description.key}"`. Do not invent a second convention.
 - **Command pattern**: `_async_turn(...)` / `async_set_native_value` / `async_select_option` / `async_press` wrap the setter via executor, then `await coordinator.async_request_refresh()` (except `reboot`), catching `TapoAuthError`/`TapoConnectionError` and logging.
-- **Coordinator reset on error**: `_async_update_data` calls `client.shutdown()` on **any** exception before raising `UpdateFailed`. This intentionally drops the session to force a fresh handshake. Preserve this when modifying the update path.
+- **Coordinator error mapping**: `TapoAuthError` → `ConfigEntryAuthFailed` + `shutdown()` (triggers HA re-auth flow); `TapoConnectionError`/unknown → `UpdateFailed` + `shutdown()` (forces fresh SPAKE2+ handshake on next poll); empty data → `UpdateFailed` **without** `shutdown()`.
+- **Failed first-refresh does not abort hub setup**: a device that's offline at setup time stays in `runtime_data` with `last_update_success=False` and is retried by HA's 15s update loop.
 - **Lazy import**: `__init__.async_setup_entry` imports `TapoP110DataCoordinator` inside the function so `cryptography`/`ecdsa` load only when an entry is added. Keep heavy/optional imports lazy in `__init__.py`.
-- **Base64 nickname decode** happens independently in `entity.py` and `config_flow.py` (with fallback to raw on error). `ssid` is also base64-decoded in `sensor.py`.
-- **Unit conversions live in `sensor.py` `native_value`**: power mW→W (`/1000`, r2), energy Wh→kWh (`/1000`, r3; total from `emeter_data.energy_wh`), voltage mV→V (`/1000`, r1), current mA→A (`/1000`, r3). `_format_duration(seconds)` (sensor.py L24) renders `today_runtime`/`month_runtime`/`on_time` as human strings (top-3 non-zero units: 30d/mo, 12mo/y) — these are **non-numeric** state strings despite being plain `SensorEntityDescription`.
-- **Config flow reuses existing credentials** across entries (`_get_existing_credentials`); a second device added to the same account shows a host-only form.
+- **Base64 nickname decode** happens independently in `entity.py`, `coordinator.py` (`_async_sync_device_registry`), and `config_flow.py` (with fallback to raw on error). `ssid` is also base64-decoded in `sensor.py`.
+- **Manifest**: `manifest.json` `requirements: ["ecdsa"]` — `ecdsa` is explicitly declared; `cryptography` is bundled with HA; `passlib` is conditionally imported by `tpap_client.py` for `passwd_id==1` (md5_crypt). TPAP is vendored.
+- **Config flow has two classes**: `TapoP110ConfigFlow` for the hub entry (account), `TapoP110DeviceSubentryFlow` for device subentries (plug). Adding a second device shows a host-only form using the hub's credentials.
 - **Naming**: domain `tapo_p110`; classes `TapoP110*`; constants `UPPER_SNAKE`; description tuples `UPPER_PLURAL` (`SENSORS`, `SWITCHES`, …).
-- **Manifest**: `manifest.json` `requirements: []` is intentional — TPAP is vendored. Do not add `cryptography`/`ecdsa` there unless you also confirm HA's bundled versions are insufficient; README states they ship with HA.
+- **Line length**: ruff enforces 120 columns (HA core uses 100). This divergence avoids a noisy first-pass reformat; revisit if the integration is ever upstreamed.
 
 ## Important Files
 
 | Path | Role |
 |---|---|
-| `custom_components/tapo_p110/manifest.json` | HA manifest: domain `tapo_p110`, `iot_class: local_polling`, `integration_type: device`, `config_flow: true`, `requirements: []`, zeroconf `_http._tcp.local.` name `tplink*`, version `1.0.0`, codeowners `["@rabilrbl"]` |
-| `custom_components/tapo_p110/__init__.py` | Setup entry point; `PLATFORMS` list; lazy coordinator import; `hass.data[DOMAIN][entry_id]` storage; unload + shutdown |
-| `custom_components/tapo_p110/const.py` | `DOMAIN`, `CONF_HOST/USERNAME/PASSWORD`, `DEFAULT_UPDATE_INTERVAL = 15` |
-| `custom_components/tapo_p110/config_flow.py` | `TapoP110ConfigFlow`; user + reconfigure steps; MAC unique id; base64 nickname title; error mapping |
-| `custom_components/tapo_p110/coordinator.py` | `TapoP110DataCoordinator`; 15s poll; shutdown-on-error; `get_all_data` keys |
-| `custom_components/tapo_p110/tpap_client.py` | **Vendored TPAP protocol** (SPAKE2+, AES-128-CCM); the core reverse-engineered logic; 489 lines; all getters/setters |
-| `custom_components/tapo_p110/entity.py` | `TapoP110Entity` base; `DeviceInfo` builder |
-| `custom_components/tapo_p110/{sensor,binary_sensor,switch,number,button,select}.py` | Platform implementations + `EntityDescription` tuples |
+| `custom_components/tapo_p110/manifest.json` | HA manifest: domain `tapo_p110`, `iot_class: local_polling`, `integration_type: device`, `config_flow: true`, `requirements: ["ecdsa"]`, zeroconf `_http._tcp.local.` name `tplink*`, version `2.2.2`, codeowners `["@rabilrbl"]` |
+| `custom_components/tapo_p110/__init__.py` | Hub setup: `async_setup_entry` (one coordinator per device subentry on `runtime_data`), `_async_subentry_listener` (add/remove/rebuild), `_async_forward_subentry_setup` + `_make_add_entities` (platform handler shim), `_async_unload_subentry` (entity + device registry cleanup), `async_unload_entry` (shutdown all coordinators), `async_migrate_entry` (v1→v2 clean start), `_safe_remove_entry` |
+| `custom_components/tapo_p110/const.py` | `DOMAIN`, `CONF_HOST/USERNAME/PASSWORD`, `SUBENTRY_TYPE_DEVICE`, `DEFAULT_UPDATE_INTERVAL = 15` |
+| `custom_components/tapo_p110/config_flow.py` | `TapoP110ConfigFlow` (hub entry: user + zeroconf + reconfigure) + `TapoP110DeviceSubentryFlow` (device subentry: add/reconfigure plug); hub unique_id = normalized username; subentry unique_id = sanitized MAC; error mapping |
+| `custom_components/tapo_p110/coordinator.py` | `TapoP110DataCoordinator`; 15s poll; `TapoAuthError`→`ConfigEntryAuthFailed`+shutdown, transient→`UpdateFailed`+shutdown, empty→`UpdateFailed` (no shutdown); `_async_sync_device_registry` updates device-registry row from live data |
+| `custom_components/tapo_p110/tpap_client.py` | **Vendored TPAP protocol** (SPAKE2+, AES-128-CCM); the core reverse-engineered logic; all getters/setters |
+| `custom_components/tapo_p110/entity.py` | `TapoP110Entity` base; `DeviceInfo` builder anchored to `subentry_id`; `build_device_info` helper |
+| `custom_components/tapo_p110/{sensor,binary_sensor,switch,number,button,select}.py` | Platform implementations + `EntityDescription` tuples; `async_setup_entry` (all subentries) + `async_setup_subentry` (single subentry) |
 | `custom_components/tapo_p110/diagnostics.py` | Diagnostics dump with PII redaction |
-| `custom_components/tapo_p110/services.yaml` | Stub (no services) |
-| `custom_components/tapo_p110/strings.json` + `translations/en.json` | Config-flow UI strings (identical content) |
-| `hacs.json` | HACS repo manifest: `{"name":"Tapo P110","render_readme":true}` |
-| `README.md` | Sole docs: install, setup, supported devices (P110 IN 1.4.3; P110 EU/UK/AU ≥1.4.0) |
-
-## Runtime/Tooling Preferences
-
-- **Runtime**: Home Assistant 2026.7+ (Python 3.x as bundled by HA). This is an HA custom integration — it is not run standalone.
-- **Required Python packages at runtime**: `ecdsa` and `cryptography` (per README, bundled with HA). `passlib` is conditionally imported by `tpap_client.py` only for `passwd_id == 1` (md5_crypt credentials). None are listed in `manifest.json` `requirements`.
-- **Package manager / build**: none. No `pyproject.toml`, `setup.py`, `requirements.txt`, or lockfiles. Distribution is HACS-only.
-- **Discovery**: zeroconf `_http._tcp.local.` with name `tplink*`.
-- **No external services/cloud after setup**: polling is local; cloud credentials are used solely for the SPAKE2+ handshake.
 
 ## Testing & QA
 
-**No tests exist** and **no test framework is configured**. Confirmed absent: `tests/`, `test_*.py`, `conftest.py`, `pytest.ini`, `pyproject.toml`, `tox.ini`, `requirements*.txt`, `unittest`/`pytest` imports anywhere in `custom_components/`. There is no CI (no `.github/`), no lint config (`ruff.toml`/`.ruff.toml`/`setup.cfg`), and no pre-commit hook.
+The test suite uses `pytest` + `pytest-asyncio` (`asyncio_mode = "auto"` in `pyproject.toml`). Run `uv run pytest` — all tests are offline and deterministic (no real device required).
 
-When adding tests, follow the [Home Assistant test conventions](https://developers.home-assistant.io/docs/development_testing/) (`pytest`, `pytest-asyncio`, `aiohttp` test harness, `homeassistant.test`); add a `pyproject.toml`/`requirements_test.txt` and update this section. If you add CI, place workflows under `.github/workflows/` and update `.gitignore` (currently minimal: only `__pycache__/`, `*.pyc`, `*.pyo`, `.DS_Store`).
+**Test structure:**
+- `tests/test_tpap_client.py` (34 tests): SPAKE2+ derivation vectors, AES-CCM nonce sequencing, 403/decrypt retry logic, error-code mapping (`-2202`/`-2203` → `TapoAuthError`), `get_all_data` atomic-vs-best-effort semantics, setter preservation (auto-update, auto-off, power-protection), no-session guard.
+- `tests/test_coordinator.py` (5 tests): Error-mapping invariants — `TapoAuthError` → `ConfigEntryAuthFailed` + `shutdown()`, `TapoConnectionError`/unknown → `UpdateFailed` + `shutdown()`, empty data → `UpdateFailed` without `shutdown()`, success path returns data.
+- `tests/conftest.py`: shared fixtures (`mock_urlopen`, `mock_client`, `spake2_vector`).
+- `tests/fixtures/spake2_vector.json`: deterministic SPAKE2+ derivation test vector (no credentials).
+
+CI runs `ruff check`, `ruff format --check`, `basedpyright`, and `pytest` on every push and PR (`.github/workflows/ci.yml`).
 
 ### Quirks to keep in mind when changing code
-
 - Partial coordinator data is normal — entities must tolerate missing keys.
-- A network blip triggers a full SPAKE2+ re-handshake on the next poll (by design).
+- A network blip or auth failure triggers a full SPAKE2+ re-handshake on the next poll: `TapoAuthError` → `ConfigEntryAuthFailed` (re-auth flow) + `shutdown()`, `TapoConnectionError`/unknown → `UpdateFailed` + `shutdown()`. Empty data → `UpdateFailed` without shutdown.
+- A device offline at setup does **not** abort the hub — its coordinator stays in `runtime_data` and retries via HA's 15s loop.
+- v1→v2 migration is a clean start, not a data migration: all v1 entries are removed, users re-add plugs as subentries. v2→v2.1 entity-identifier change (`device_id`→`subentry_id`) is NOT migrated; orphaned device-registry rows are cleaned once via UI.
 - `today_runtime`/`month_runtime`/`on_time` sensors return human-readable strings, not numeric values.
 - `set_auto_update` and the auto-off setters re-read device config first to preserve unchanged fields — mirror this when adding paired setters.
 - Diagnostics redacts PII but intentionally exposes `nickname`, `fw_ver`, `specs`.
