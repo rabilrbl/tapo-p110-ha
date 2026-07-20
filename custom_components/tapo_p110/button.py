@@ -4,10 +4,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from homeassistant.components.button import (
-    ButtonEntity,
-    ButtonEntityDescription,
-)
+from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -22,12 +19,6 @@ _LOGGER = logging.getLogger(__name__)
 
 BUTTONS: tuple[ButtonEntityDescription, ...] = (
     ButtonEntityDescription(
-        key="reboot",
-        name="Reboot",
-        icon="mdi:restart",
-        entity_category=EntityCategory.CONFIG,
-    ),
-    ButtonEntityDescription(
         key="reload_device",
         name="Reload Device",
         icon="mdi:restart-alert",
@@ -36,13 +27,9 @@ BUTTONS: tuple[ButtonEntityDescription, ...] = (
 )
 
 
-
 def _build_entities(coordinator: TapoP110DataCoordinator, subentry_id: str) -> list:
     """Build the button entities for one device subentry."""
-    return [
-        TapoP110Button(coordinator, BUTTONS[0], subentry_id),
-        TapoP110ReloadButton(coordinator, BUTTONS[1], subentry_id),
-    ]
+    return [TapoP110ReloadButton(coordinator, BUTTONS[0], subentry_id)]
 
 
 async def async_setup_entry(
@@ -79,8 +66,14 @@ async def async_setup_subentry(
     )
 
 
-class TapoP110Button(TapoP110Entity, ButtonEntity):
-    """Button for Tapo P110."""
+class TapoP110ReloadButton(TapoP110Entity, ButtonEntity):
+    """Reload a single Tapo P110 device (re-handshake + re-poll).
+
+    Drops the plug's SPAKE2+ session and forces an immediate refresh, which
+    re-runs ``_async_update_data`` -> ``get_all_data`` -> ``discover_and_handshake``.
+    Scoped to the one plug: each entity holds its own ``coordinator.client``.
+    Does NOT touch sibling coordinators or entities.
+    """
 
     def __init__(
         self,
@@ -91,23 +84,6 @@ class TapoP110Button(TapoP110Entity, ButtonEntity):
         super().__init__(coordinator, subentry_id)
         self.entity_description = description
         self._attr_unique_id = f"{subentry_id}_{description.key}"
-
-    async def async_press(self, **kwargs: Any) -> None:
-        """Handle button press."""
-        try:
-            await self.hass.async_add_executor_job(self.coordinator.client.reboot)
-        except (TapoAuthError, TapoConnectionError) as exc:
-            _LOGGER.error("Reboot failed: %s", exc)
-
-
-class TapoP110ReloadButton(TapoP110Button):
-    """Reload a single Tapo P110 device (re-handshake + re-poll).
-
-    Drops the plug's SPAKE2+ session and forces an immediate refresh, which
-    re-runs ``_async_update_data`` -> ``get_all_data`` -> ``discover_and_handshake``.
-    Scoped to the one plug: each entity holds its own ``coordinator.client``.
-    Does NOT touch sibling coordinators or entities.
-    """
 
     async def async_press(self, **kwargs: Any) -> None:
         """Handle button press: drop session + immediate re-poll."""

@@ -13,7 +13,7 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 - **Hub model** — one config entry per TP-Link account, multiple plugs as device subentries
 - **Local polling** — no cloud dependency after setup
 - **TPAP protocol** — SPAKE2+ handshake with cloud credentials
-- 28 entities per device across 6 platforms:
+- 27 entities per device across 6 platforms:
 
 ### Switches
 - Plug Power (outlet on/off)
@@ -37,15 +37,11 @@ I was frustrated after I bought a new Tapo P110 (IN/1.20) and couldn't get any e
 ### Binary Sensors
 - Overheat, Power Overload, Overcurrent, Charging Protection
 
-### Buttons
+### Button
 
-Both buttons are CONFIG-category entities — find them on the device page under the config section, not on the main dashboard.
+**Reload Device** is a CONFIG-category entity — find it on the device page under the config section, not on the main dashboard.
 
-- **Reboot** — Restarts the physical plug (same as pulling power and plugging back in). The plug drops off the network briefly and reconnects. Use this when the plug is acting erratically (stuck state, unresponsive WiFi).
-
-- **Reload Device** — Drops the plug's SPAKE2+ session and forces an immediate re-poll (re-handshake + fresh data fetch). **Does not reboot the plug.** Use this when the plug's entities show stale/unavailable data but the plug itself is responsive (e.g. after a network change, DHCP renewal, or HA was offline for a while). This is scoped to the single plug — it does not affect other devices on the same hub.
-
-> **Reboot vs Reload Device:** Reboot restarts the **hardware**; Reload Device restarts the **HA-side session**. If the plug is unreachable, Reboot won't help (it can't reach the plug to send the command) — use Reload Device to re-handshake. If the plug is behaving badly at the hardware level, Reload Device won't fix it — use Reboot.
+- **Reload Device** — Drops the plug's SPAKE2+ session and forces an immediate re-poll (re-handshake + fresh data fetch). Use this when the plug's entities show stale or unavailable data but the plug itself is responsive (e.g. after a network change, DHCP renewal, or HA was offline for a while). Scoped to the single plug — does not affect other devices on the same hub.
 
 ### Number
 - Auto-Off After (box input, 0–1439 min)
