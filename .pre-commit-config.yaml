@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.22
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/ComPWA/pyright-pre-commit
+    rev: v1.1.407
+    hooks:
+      - id: pyright
+        additional_dependencies:
+          - homeassistant==2026.7.*
+          - ecdsa
+          - cryptography
+          - passlib

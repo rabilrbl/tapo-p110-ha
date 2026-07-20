@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint (ruff check)
+        run: uv run ruff check custom_components/tapo_p110/ tests/
+
+      - name: Format check (ruff format)
+        run: uv run ruff format --check custom_components/tapo_p110/ tests/
+
+      - name: Type-check (basedpyright)
+        run: uv run basedpyright
+
+      - name: Tests (pytest)
+        run: uv run pytest

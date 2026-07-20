@@ -1,4 +1,5 @@
 """Diagnostics support for Tapo P110 (hub + device subentries)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -22,18 +23,13 @@ _REDACT_KEYS = {
 
 def _redact(obj: Any) -> Any:
     if isinstance(obj, dict):
-        return {
-            k: "***REDACTED***" if k in _REDACT_KEYS else _redact(v)
-            for k, v in obj.items()
-        }
+        return {k: "***REDACTED***" if k in _REDACT_KEYS else _redact(v) for k, v in obj.items()}
     if isinstance(obj, list):
         return [_redact(i) for i in obj]
     return obj
 
 
-async def async_get_config_entry_diagnostics(
-    hass: HomeAssistant, entry: ConfigEntry
-) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
     """Return diagnostics for a hub config entry and all its device subentries."""
     coordinators: dict = entry.runtime_data or {}
     devices: list[dict[str, Any]] = []

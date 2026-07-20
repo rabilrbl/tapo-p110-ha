@@ -1,0 +1,54 @@
+[project]
+name = "tapo-p110-ha"
+version = "2.2.2"
+description = "Custom Home Assistant integration for the TP-Link Tapo P110 smart plug (TPAP protocol)."
+readme = "README.md"
+requires-python = ">=3.14.2"
+license = { text = "MIT" }
+authors = [{ name = "rabilrbl" }]
+# No runtime dependencies declared here — the integration is HACS
+# source-distributed and runs inside Home Assistant, which bundles its own
+# Python and provides cryptography/ecdsa. manifest.json requirements (ecdsa)
+# are resolved by HA at install time, not by this file.
+
+[dependency-groups]
+# Dev-only dependency group. `uv sync` installs these into the project venv
+# so ruff / basedpyright / pytest and the homeassistant package are available
+# for linting, type-checking, and testing. None of these ship to users.
+dev = [
+    "homeassistant==2026.7.*",
+    "ecdsa",
+    "cryptography",
+    "passlib",
+    "pytest",
+    "pytest-asyncio",
+    "aiohttp",
+    "ruff",
+    "basedpyright",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+# HA core uses 100 columns; this integration uses 120 to avoid a noisy
+# first-pass reformat that would mix style churn into tooling changes.
+# Revisit if the integration is ever upstreamed. See design D4.
+
+[tool.ruff.lint]
+# Rule families aligned with Home Assistant core's selection:
+#   E/F  - pycodestyle errors + pyflakes
+#   I    - isort (import sorting)
+#   UP   - pyupgrade
+#   B    - flake8-bugbear
+#   SIM  - flake8-simplify
+#   ASYNC - flake8-async
+#   RUF  - ruff-specific
+select = ["E", "F", "I", "UP", "B", "SIM", "ASYNC", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # assert is fine in tests
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

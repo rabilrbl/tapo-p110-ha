@@ -1,4 +1,5 @@
 """Switch platform for Tapo P110."""
+
 from __future__ import annotations
 
 import logging
@@ -9,8 +10,8 @@ from homeassistant.components.switch import (
     SwitchEntity,
     SwitchEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TapoP110HubEntry
@@ -94,7 +95,12 @@ async def async_setup_subentry(
 class TapoP110BaseSwitch(TapoP110Entity, SwitchEntity):
     """Base switch for Tapo P110."""
 
-    def __init__(self, coordinator: TapoP110DataCoordinator, description: SwitchEntityDescription, subentry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TapoP110DataCoordinator,
+        description: SwitchEntityDescription,
+        subentry_id: str,
+    ) -> None:
         super().__init__(coordinator, subentry_id)
         self.entity_description = description
         self._attr_unique_id = f"{subentry_id}_{description.key}"
@@ -123,9 +129,7 @@ class TapoP110PowerSwitch(TapoP110BaseSwitch):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.data is not None and bool(
-            self.coordinator.data.get("device_info")
-        )
+        return self.coordinator.data is not None and bool(self.coordinator.data.get("device_info"))
 
 
 class TapoP110AutoOffSwitch(TapoP110BaseSwitch):

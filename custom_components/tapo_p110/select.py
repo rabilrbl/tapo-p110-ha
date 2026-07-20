@@ -1,15 +1,15 @@
 """Select platform for Tapo P110."""
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.select import (
     SelectEntity,
     SelectEntityDescription,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import TapoP110HubEntry
@@ -119,13 +119,9 @@ class TapoP110Select(TapoP110Entity, SelectEntity):
         try:
             if key == "led_rule":
                 option_map = {"Always On": "always", "Auto": "auto", "Off": "never"}
-                await self.hass.async_add_executor_job(
-                    self.coordinator.client.set_led_rule, option_map[option]
-                )
+                await self.hass.async_add_executor_job(self.coordinator.client.set_led_rule, option_map[option])
             elif key == "default_states":
-                await self.hass.async_add_executor_job(
-                    self.coordinator.client.set_default_state, option
-                )
+                await self.hass.async_add_executor_job(self.coordinator.client.set_default_state, option)
             await self.coordinator.async_request_refresh()
         except (TapoAuthError, TapoConnectionError) as exc:
             _LOGGER.error("Set option failed: %s", exc)

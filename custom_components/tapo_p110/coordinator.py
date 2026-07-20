@@ -1,4 +1,5 @@
 """Data coordinator for Tapo P110."""
+
 from __future__ import annotations
 
 import base64
@@ -7,16 +8,15 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import (
-    ConfigEntryAuthFailed,
     DataUpdateCoordinator,
     UpdateFailed,
 )
 
 from .const import DEFAULT_UPDATE_INTERVAL, DOMAIN
-from homeassistant.helpers import device_registry as dr
 from .tpap_client import TapoAuthError, TapoConnectionError, TapoP110Client
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,9 +48,7 @@ class TapoP110DataCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the device."""
         try:
-            data = await self.hass.async_add_executor_job(
-                self.client.get_all_data
-            )
+            data = await self.hass.async_add_executor_job(self.client.get_all_data)
         except TapoAuthError as exc:
             # Auth failed — surface to HA so it starts a re-auth flow instead
             # of retrying a bad credential forever. Session is dropped so the
