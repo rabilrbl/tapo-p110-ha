@@ -7,7 +7,7 @@ Custom Home Assistant integration for the TP-Link **Tapo P110** smart plug, spea
 - **Domain**: `tapo_p110`
 - **Integration type**: `device`, `iot_class: local_polling`, 15s poll interval
 - **Target**: HA 2026.7+
-- **Version**: 2.2.2
+- **Version**: 2.2.3
 - **Architecture**: hub+subentry model — one config entry per TP-Link account (the hub), one device subentry per plug. Each subentry has its own `TapoP110DataCoordinator`.
 - **Runtime deps**: `ecdsa` (declared in `manifest.json` `requirements`), `cryptography` + `passlib` (bundled with HA; conditionally imported by `tpap_client.py` for `passwd_id==1`)
 - **Repo**: github.com/rabilrbl/tapo-p110-ha
@@ -160,7 +160,7 @@ Lint and type-check run on every push and PR via `.github/workflows/ci.yml`.
 
 | Path | Role |
 |---|---|
-| `custom_components/tapo_p110/manifest.json` | HA manifest: domain `tapo_p110`, `iot_class: local_polling`, `integration_type: device`, `config_flow: true`, `requirements: ["ecdsa"]`, zeroconf `_http._tcp.local.` name `tplink*`, version `2.2.2`, codeowners `["@rabilrbl"]` |
+| `custom_components/tapo_p110/manifest.json` | HA manifest: domain `tapo_p110`, `iot_class: local_polling`, `integration_type: device`, `config_flow: true`, `requirements: ["ecdsa"]`, zeroconf `_http._tcp.local.` name `tplink*`, version `2.2.3`, codeowners `["@rabilrbl"]` |
 | `custom_components/tapo_p110/__init__.py` | Hub setup: `async_setup_entry` (one coordinator per device subentry on `runtime_data`), `_async_subentry_listener` (add/remove/rebuild), `_async_forward_subentry_setup` + `_make_add_entities` (platform handler shim), `_async_unload_subentry` (entity + device registry cleanup), `async_unload_entry` (shutdown all coordinators), `async_migrate_entry` (v1→v2 clean start), `_safe_remove_entry` |
 | `custom_components/tapo_p110/const.py` | `DOMAIN`, `CONF_HOST/USERNAME/PASSWORD`, `SUBENTRY_TYPE_DEVICE`, `DEFAULT_UPDATE_INTERVAL = 15` |
 | `custom_components/tapo_p110/config_flow.py` | `TapoP110ConfigFlow` (hub entry: user + zeroconf + reconfigure) + `TapoP110DeviceSubentryFlow` (device subentry: add/reconfigure plug); hub unique_id = normalized username; subentry unique_id = sanitized MAC; error mapping |
