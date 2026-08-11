@@ -16,7 +16,7 @@ authors = [{ name = "rabilrbl" }]
 # so ruff / basedpyright / pytest and the homeassistant package are available
 # for linting, type-checking, and testing. None of these ship to users.
 dev = [
-    "homeassistant==2026.7.*",
+    "homeassistant>=2026.7,<2026.9",
     "ecdsa",
     "cryptography",
     "passlib",
