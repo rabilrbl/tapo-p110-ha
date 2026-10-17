@@ -1893,7 +1893,7 @@ wheels = [
 
 [[package]]
 name = "tapo-p110-ha"
-version = "2.2.2"
+version = "2.3.0"
 source = { virtual = "." }
 
 [package.dev-dependencies]
@@ -1917,7 +1917,7 @@ dev = [
     { name = "basedpyright" },
     { name = "cryptography" },
     { name = "ecdsa" },
-    { name = "homeassistant", specifier = "==2026.7.*" },
+    { name = "homeassistant", specifier = ">=2026.7,<2026.11" },
     { name = "passlib" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
