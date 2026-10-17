@@ -129,7 +129,11 @@ class TapoP110PowerSwitch(TapoP110BaseSwitch):
 
     @property
     def available(self) -> bool:
-        return self.coordinator.data is not None and bool(self.coordinator.data.get("device_info"))
+        return (
+            self.coordinator.last_update_success
+            and self.coordinator.data is not None
+            and bool(self.coordinator.data.get("device_info"))
+        )
 
 
 class TapoP110AutoOffSwitch(TapoP110BaseSwitch):

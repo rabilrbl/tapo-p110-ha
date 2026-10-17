@@ -334,7 +334,7 @@ class TapoP110Sensor(TapoP110Entity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        if self.coordinator.data is None:
+        if not self.coordinator.last_update_success or self.coordinator.data is None:
             return False
         if self.entity_description.key == "device_id":
             return self.coordinator.data.get("device_info") is not None
